@@ -1,0 +1,6 @@
+# 把这些内容加到你仓库的 .gitignore 里
+# config.py 里有飞书凭证，不要提交到 Git
+
+config.py
+*.log
+__pycache__/

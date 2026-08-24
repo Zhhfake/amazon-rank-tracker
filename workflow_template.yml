@@ -1,0 +1,114 @@
+# GitHub Actions 模板 — Amazon 自然位排名自动追踪
+# 放到 .github/workflows/daily-rank.yml
+#
+# === 你需要改的地方 ===
+# 1. cron 时间（UTC）
+# 2. 产品 job 名称和 --sheet 参数
+# 3. needs 依赖关系（哪些并行、哪些串行）
+# 4. timeout-minutes（根据关键词数量估算：每100词约22分钟）
+
+name: Daily Amazon Rank Check
+
+on:
+  schedule:
+    # UTC 时间！北京时间 = UTC + 8
+    # 例：UTC 05:00 = 北京 13:00
+    - cron: '0 5 * * *'
+  workflow_dispatch:  # 允许手动触发
+
+concurrency:
+  group: daily-rank
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  # ====== 预检查：本地是否已跑 ======
+  pre-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      need_run: ${{ steps.check.outputs.need_run }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check if local already ran today
+        id: check
+        run: |
+          if python -u rank_tracker_core.py --check-only; then
+            echo "need_run=false" >> $GITHUB_OUTPUT
+            echo "✅ 本地已跑，云端跳过"
+          else
+            echo "need_run=true" >> $GITHUB_OUTPUT
+            echo "⚠️ 本地没跑，云端启动"
+          fi
+
+  # ====== 产品 Job 模板 ======
+  # 复制这个 job，改 name 和 --sheet 参数
+  # 并行跑的产品：needs 只写 [pre-check]
+  # 串行跑的产品：needs 写上一批的 job 名
+  #
+  # timeout 估算：每100个关键词约22分钟（7页搜索）
+  #              每100个关键词约30分钟（10页搜索）
+
+  product-a:
+    needs: [pre-check]
+    if: needs.pre-check.outputs.need_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60  # 根据关键词数量调整
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Playwright
+        run: pip install playwright && playwright install chromium --with-deps
+      - name: "产品A (xxx词)"
+        run: python -u rank_tracker_core.py --sheet "产品A"
+
+  product-b:
+    needs: [pre-check]
+    if: needs.pre-check.outputs.need_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Playwright
+        run: pip install playwright && playwright install chromium --with-deps
+      - name: "产品B (xxx词)"
+        run: python -u rank_tracker_core.py --sheet "产品B"
+
+  # ====== 跑完发日报 ======
+  notify:
+    runs-on: ubuntu-latest
+    needs: [pre-check, product-a, product-b]  # 列出所有产品 job
+    if: always() && needs.pre-check.outputs.need_run == 'true'
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Send daily report
+        run: python -u rank_tracker_core.py --notify-only
+
+  # ====== 保活：防止 GitHub 60天不活跃禁用 cron ======
+  keepalive:
+    runs-on: ubuntu-latest
+    needs: [pre-check]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Keep repo active for cron
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git pull --rebase || true
+          git commit --allow-empty -m "keepalive: $(date -u +%Y-%m-%d)"
+          git push
