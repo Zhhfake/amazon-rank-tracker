@@ -136,12 +136,12 @@ def style_rows(token, spreadsheet_token, sheet_id, own_rows, ad_rows):
     data = []
     if ad_rows:
         data.append({
-            "ranges": [f"{sheet_id}!A{row}:I{row}" for row in ad_rows],
+            "ranges": [f"{sheet_id}!A{row}:H{row}" for row in ad_rows],
             "style": {"backColor": "#E8F1FF"},
         })
     if own_rows:
         data.append({
-            "ranges": [f"{sheet_id}!A{row}:I{row}" for row in own_rows],
+            "ranges": [f"{sheet_id}!A{row}:H{row}" for row in own_rows],
             "style": {"backColor": "#FFF2CC"},
         })
     if not data:
@@ -161,22 +161,6 @@ def extract_title(section):
         if match:
             return clean_text(match.group(1))
     return ""
-
-
-def extract_brand(section, title):
-    patterns = [
-        r'Visit the ([^<"]+?) Store',
-        r'Brand:\s*</span>\s*<span[^>]*>(.*?)</span>',
-        r'by\s+<span[^>]*>(.*?)</span>',
-        r'a-size-base-plus a-color-base">(.*?)</span>',
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, section, flags=re.I | re.S)
-        if match:
-            brand = clean_text(match.group(1))
-            if brand and len(brand) <= 40:
-                return brand
-    return (title.split(" ", 1)[0] if title else "")
 
 
 def extract_rating(section):
@@ -267,7 +251,6 @@ def first_page_results(ranker, keyword, target_asins):
             "type": item_type,
             "natural_rank": item_natural_rank,
             "asin": asin,
-            "brand": extract_brand(section, title),
             "rating": extract_rating(section),
             "review_count": extract_review_count(section),
             "price": extract_price(section),
@@ -331,7 +314,7 @@ def main():
             ["邮编", zipcode],
             ["更新时间", run_label],
             [],
-            ["页面顺序", "类型", "自然排名", "ASIN", "品牌", "评分", "评分数量", "价格", "标题"],
+            ["页面顺序", "类型", "自然排名", "ASIN", "评分", "评分数量", "价格", "标题"],
         ]
         own_rows = []
         ad_rows = []
@@ -342,7 +325,6 @@ def main():
                 result["type"],
                 result["natural_rank"],
                 result["asin"],
-                result["brand"],
                 result["rating"],
                 result["review_count"],
                 result["price"],
