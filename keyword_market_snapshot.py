@@ -216,6 +216,17 @@ def extract_price(section):
     return match.group(0) if match else ""
 
 
+def is_real_product_card(section, asin, title):
+    if not title or title.lower() == "search":
+        return False
+    asin_link_patterns = [
+        rf'/dp/{re.escape(asin)}',
+        rf'/gp/product/{re.escape(asin)}',
+        rf'/sspa/click[^"]*%2Fdp%2F{re.escape(asin)}',
+    ]
+    return any(re.search(pattern, section, flags=re.I) for pattern in asin_link_patterns)
+
+
 def is_sponsored(section):
     first_chunk = section[:7000]
     return bool(re.search(r'Sponsored|AdHolder|s-sponsored|puis-sponsored-label', first_chunk, flags=re.I))
@@ -240,7 +251,7 @@ def first_page_results(ranker, keyword, target_asins):
         if not asin:
             continue
         title = extract_title(section)
-        if not title:
+        if not is_real_product_card(section, asin, title):
             continue
         page_order += 1
         sponsored = is_sponsored(section)
