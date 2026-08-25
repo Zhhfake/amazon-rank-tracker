@@ -136,12 +136,12 @@ def style_rows(token, spreadsheet_token, sheet_id, own_rows, ad_rows):
     data = []
     if ad_rows:
         data.append({
-            "ranges": [f"{sheet_id}!A{row}:H{row}" for row in ad_rows],
+            "ranges": [f"{sheet_id}!A{row}:I{row}" for row in ad_rows],
             "style": {"backColor": "#E8F1FF"},
         })
     if own_rows:
         data.append({
-            "ranges": [f"{sheet_id}!A{row}:H{row}" for row in own_rows],
+            "ranges": [f"{sheet_id}!A{row}:I{row}" for row in own_rows],
             "style": {"backColor": "#FFF2CC"},
         })
     if not data:
@@ -289,17 +289,20 @@ def main():
         spreadsheet_token, spreadsheet_url = create_spreadsheet(token_mgr.token, title)
         grant_user_permission(token_mgr.token, spreadsheet_token)
 
-    overview_sheet_id = get_or_create_sheet(token_mgr.token, spreadsheet_token, "总览", index=0)
-    overview_rows = [
+    snapshot_sheet_id = get_or_create_sheet(token_mgr.token, spreadsheet_token, "竞对快照", index=0)
+    rows = [
         ["关键词", keyword],
         ["更新时间", run_label],
         ["邮编", ", ".join(zipcodes)],
         ["标黄ASIN", ", ".join(sorted(target_asins))],
         ["表格链接", spreadsheet_url or spreadsheet_token],
+        [],
+        ["邮编", "页面顺序", "类型", "自然排名", "ASIN", "评分", "评分数量", "价格", "标题"],
     ]
-    write_values(token_mgr.token, spreadsheet_token, overview_sheet_id, "A1", overview_rows)
+    own_rows = []
+    ad_rows = []
 
-    for sheet_index, zipcode in enumerate(zipcodes, start=1):
+    for zipcode in zipcodes:
         print(f"查询: {keyword} / {zipcode}", flush=True)
         ranker = AmazonRanker(zipcode)
         try:
@@ -307,20 +310,10 @@ def main():
         finally:
             ranker.close()
 
-        sheet_title = safe_sheet_title(f"{zipcode}-{keyword}")
-        sheet_id = get_or_create_sheet(token_mgr.token, spreadsheet_token, sheet_title, index=sheet_index)
-        rows = [
-            ["关键词", keyword],
-            ["邮编", zipcode],
-            ["更新时间", run_label],
-            [],
-            ["页面顺序", "类型", "自然排名", "ASIN", "评分", "评分数量", "价格", "标题"],
-        ]
-        own_rows = []
-        ad_rows = []
         for result in results:
             row_number = len(rows) + 1
             rows.append([
+                zipcode,
                 result["page_order"],
                 result["type"],
                 result["natural_rank"],
@@ -334,9 +327,11 @@ def main():
                 ad_rows.append(row_number)
             if result["is_ours"]:
                 own_rows.append(row_number)
-        write_values(token_mgr.token, spreadsheet_token, sheet_id, "A1", rows)
-        style_rows(token_mgr.token, spreadsheet_token, sheet_id, own_rows, ad_rows)
+        rows.append(["", "", "", "", "", "", "", "", ""])
         time.sleep(1)
+
+    write_values(token_mgr.token, spreadsheet_token, snapshot_sheet_id, "A1", rows)
+    style_rows(token_mgr.token, spreadsheet_token, snapshot_sheet_id, own_rows, ad_rows)
 
     print("\n✅ 关键词竞对快照完成")
     print(spreadsheet_url or spreadsheet_token)
