@@ -17,7 +17,7 @@ import sys
 import time
 import urllib.parse
 
-from config import ZIPCODE
+from config import FEISHU_PRIVATE_OPEN_ID, ZIPCODE
 from rank_tracker_core import AmazonRanker, FeishuTokenManager, col_letter, feishu_api
 
 
@@ -52,6 +52,25 @@ def create_spreadsheet(token, title):
     if not spreadsheet_token:
         raise RuntimeError(f"创建飞书表格成功但没有拿到 token: {json.dumps(resp, ensure_ascii=False)[:500]}")
     return spreadsheet_token, spreadsheet_url
+
+
+def grant_user_permission(token, spreadsheet_token):
+    if not FEISHU_PRIVATE_OPEN_ID:
+        print("⚠ 未配置个人 open_id，新表不会自动授权给你", flush=True)
+        return
+    url = (
+        f"https://open.feishu.cn/open-apis/drive/v1/permissions/{spreadsheet_token}/members"
+        "?type=sheet&need_notification=true"
+    )
+    try:
+        feishu_api("POST", url, {
+            "member_type": "openid",
+            "member_id": FEISHU_PRIVATE_OPEN_ID,
+            "perm": "edit",
+        }, token=token)
+        print("✅ 已自动授权给你的飞书账号", flush=True)
+    except Exception as e:
+        print(f"⚠ 自动授权失败，请手动分享表格: {e}", flush=True)
 
 
 def list_sheets(token, spreadsheet_token):
@@ -279,6 +298,7 @@ def main():
     if not spreadsheet_token:
         title = f"关键词竞对自然广告排名 - {keyword[:40]}"
         spreadsheet_token, spreadsheet_url = create_spreadsheet(token_mgr.token, title)
+        grant_user_permission(token_mgr.token, spreadsheet_token)
 
     overview_sheet_id = get_or_create_sheet(token_mgr.token, spreadsheet_token, "总览", index=0)
     overview_rows = [
