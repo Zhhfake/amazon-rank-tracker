@@ -116,7 +116,7 @@ def find_next_date_column(token, sheet_id, date_row=2, min_col_idx=0, header_lab
     """找到日期行应该写入的列（0-based index）。
     从右往左找连续日期块的末尾，跳过孤立的远端日期。"""
     base = f"https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{SPREADSHEET_TOKEN}"
-    resp = feishu_api("GET", f"{base}/values/{sheet_id}!A{date_row}:DZ{date_row}", token=token)
+    resp = feishu_api("GET", f"{base}/values/{sheet_id}!A{date_row}:ZZ{date_row}", token=token)
     row = resp["data"]["valueRange"]["values"][0]
 
     today = datetime.date.today()
@@ -175,7 +175,7 @@ def find_next_zipcode_column(token, sheet_id, date_row, zipcode_row, zipcode, mi
     zip_label = str(zipcode)
     legacy_label = f"{today_str}-{zip_label}"
 
-    resp = feishu_api("GET", f"{base}/values/{sheet_id}!A{date_row}:DZ{zipcode_row}", token=token)
+    resp = feishu_api("GET", f"{base}/values/{sheet_id}!A{date_row}:ZZ{zipcode_row}", token=token)
     rows = resp["data"]["valueRange"].get("values", [])
     date_values = rows[0] if rows else []
     zip_values = rows[zipcode_row - date_row] if len(rows) > zipcode_row - date_row else []
@@ -211,7 +211,7 @@ def find_next_zipcode_column(token, sheet_id, date_row, zipcode_row, zipcode, mi
 def find_latest_zipcode_column(token, sheet_id, date_row, zipcode_row, zipcode, min_col_idx=0):
     """找到最右侧一列同邮编数据，用于日报读取最新一次运行。"""
     base = f"https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{SPREADSHEET_TOKEN}"
-    resp = feishu_api("GET", f"{base}/values/{sheet_id}!A{date_row}:DZ{zipcode_row}", token=token)
+    resp = feishu_api("GET", f"{base}/values/{sheet_id}!A{date_row}:ZZ{zipcode_row}", token=token)
     rows = resp["data"]["valueRange"].get("values", [])
     zip_values = rows[zipcode_row - date_row] if len(rows) > zipcode_row - date_row else []
     legacy_pattern = re.compile(r'^\d{1,2}/\d{1,2}(?: \d{2}:\d{2})?-' + re.escape(str(zipcode)) + r'$')
@@ -242,7 +242,7 @@ def merge_date_header(token, sheet_id, date_row, start_col_idx, end_col_idx):
 def find_previous_zipcode_column(token, sheet_id, today_col_idx, date_row, zipcode_row, zipcode, min_col_idx=0):
     """找到当前列左侧最近一个相同邮编的历史列。"""
     base = f"https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{SPREADSHEET_TOKEN}"
-    resp = feishu_api("GET", f"{base}/values/{sheet_id}!A{date_row}:DZ{zipcode_row}", token=token)
+    resp = feishu_api("GET", f"{base}/values/{sheet_id}!A{date_row}:ZZ{zipcode_row}", token=token)
     rows = resp["data"]["valueRange"].get("values", [])
     date_values = rows[0] if rows else []
     zip_values = rows[zipcode_row - date_row] if len(rows) > zipcode_row - date_row else []
@@ -1176,7 +1176,7 @@ def color_all_sheets():
 
         print(f"\n{'='*50}\n上色: {name}", flush=True)
 
-        resp = feishu_api("GET", f"{base}/values/{sheet_id}!A{date_row}:DZ{date_row}", token=token_mgr.token)
+        resp = feishu_api("GET", f"{base}/values/{sheet_id}!A{date_row}:ZZ{date_row}", token=token_mgr.token)
         date_row_data = resp["data"]["valueRange"]["values"][0]
 
         date_cols = [i for i, v in enumerate(date_row_data) if v is not None and _is_date_value(v)]
