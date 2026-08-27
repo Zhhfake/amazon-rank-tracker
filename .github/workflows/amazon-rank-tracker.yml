@@ -2,8 +2,8 @@ name: Amazon Rank Tracker
 
 on:
   schedule:
-    # Every hour on the hour.
-    - cron: "0 * * * *"
+    # Every hour at minute 17, avoiding GitHub's busy top-of-hour window.
+    - cron: "17 * * * *"
   workflow_dispatch:
 
 concurrency:
