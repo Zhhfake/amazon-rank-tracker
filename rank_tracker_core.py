@@ -515,52 +515,47 @@ def _merge_consecutive_rows(row_numbers, sheet_id, col):
     return ranges
 
 
+def _rank_color_bucket(rank):
+    """按当前自然排名分档：1-4绿，5-8黄，9名以后红。"""
+    if not rank:
+        return "white"
+    if rank <= 4:
+        return "green"
+    if rank <= 8:
+        return "yellow"
+    return "red"
+
+
 def apply_rank_colors(token, sheet_id, today_col_idx, start_row, today_values,
                       date_row=None, zipcode_row=None, zipcode=None, min_col_idx=0):
-    """对比上一期同邮编排名，给今天的单元格上色：上升绿、下降红、不变白"""
-    if zipcode and date_row and zipcode_row:
-        previous_col_idx = find_previous_zipcode_column(
-            token, sheet_id, today_col_idx, date_row, zipcode_row, zipcode, min_col_idx
-        )
-    else:
-        previous_col_idx = today_col_idx - 1
-
-    if previous_col_idx is None or previous_col_idx < 0:
-        print("  🎨 没有上一期同邮编数据，跳过上色")
-        return
-
-    print(f"  🎨 对比列: {col_letter(previous_col_idx)} -> {col_letter(today_col_idx)}")
-    yesterday_data = read_column_data(token, sheet_id, previous_col_idx, start_row,
-                                       start_row - 1 + len(today_values))
+    """按当前自然排名给今天的单元格上色。"""
+    print(f"  🎨 按排名档位上色: {col_letter(today_col_idx)}")
 
     col = col_letter(today_col_idx)
-    green_rows, red_rows, white_rows = [], [], []
+    green_rows, yellow_rows, red_rows, white_rows = [], [], [], []
 
     for i, tv in enumerate(today_values):
         t_rank = parse_rank(tv[0] if tv else None)
-        y_rank = parse_rank(yesterday_data[i][0] if i < len(yesterday_data) and yesterday_data[i] else None)
         row_num = start_row + i
-
-        if t_rank and y_rank:
-            if t_rank < y_rank:
-                green_rows.append(row_num)
-            elif t_rank > y_rank:
-                red_rows.append(row_num)
-            else:
-                white_rows.append(row_num)
-        elif t_rank and not y_rank:
+        bucket = _rank_color_bucket(t_rank)
+        if bucket == "green":
             green_rows.append(row_num)
-        elif not t_rank and y_rank:
+        elif bucket == "yellow":
+            yellow_rows.append(row_num)
+        elif bucket == "red":
             red_rows.append(row_num)
         else:
             white_rows.append(row_num)
 
     data = []
     green_ranges = _merge_consecutive_rows(green_rows, sheet_id, col)
+    yellow_ranges = _merge_consecutive_rows(yellow_rows, sheet_id, col)
     red_ranges = _merge_consecutive_rows(red_rows, sheet_id, col)
     white_ranges = _merge_consecutive_rows(white_rows, sheet_id, col)
     if green_ranges:
         data.append({"ranges": green_ranges, "style": {"backColor": "#D5F5E3"}})
+    if yellow_ranges:
+        data.append({"ranges": yellow_ranges, "style": {"backColor": "#FCF3CF"}})
     if red_ranges:
         data.append({"ranges": red_ranges, "style": {"backColor": "#FADBD8"}})
     if white_ranges:
@@ -570,7 +565,7 @@ def apply_rank_colors(token, sheet_id, today_col_idx, start_row, today_values,
         base = f"https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{SPREADSHEET_TOKEN}"
         try:
             feishu_api("PUT", f"{base}/styles_batch_update", {"data": data}, token=token)
-            print(f"  🎨 上色完成: {len(green_rows)}绿 {len(red_rows)}红 {len(white_rows)}白")
+            print(f"  🎨 上色完成: {len(green_rows)}绿 {len(yellow_rows)}黄 {len(red_rows)}红 {len(white_rows)}白")
         except Exception as e:
             print(f"  🎨 上色失败（不影响数据）: {e}")
 
@@ -1181,7 +1176,7 @@ def color_all_sheets():
 
         date_cols = [i for i, v in enumerate(date_row_data) if v is not None and _is_date_value(v)]
 
-        if len(date_cols) < 2:
+        if not date_cols:
             print(f"  只有{len(date_cols)}列日期数据，跳过", flush=True)
             continue
 
@@ -1193,32 +1188,23 @@ def color_all_sheets():
         resp = feishu_api("GET", f"{base}/values/{sheet_id}!{first_col}{start_row}:{last_col}{end_row}", token=token_mgr.token)
         all_data = resp["data"]["valueRange"].get("values", [])
 
-        for col_pos in range(1, len(date_cols)):
+        for col_pos in range(len(date_cols)):
             today_abs = date_cols[col_pos]
-            yesterday_abs = date_cols[col_pos - 1]
             today_rel = today_abs - date_cols[0]
-            yesterday_rel = yesterday_abs - date_cols[0]
             col = col_letter(today_abs)
 
-            green_rows, red_rows, white_rows = [], [], []
+            green_rows, yellow_rows, red_rows, white_rows = [], [], [], []
 
             for row_i in range(len(all_data)):
                 t_val = all_data[row_i][today_rel] if today_rel < len(all_data[row_i]) else None
-                y_val = all_data[row_i][yesterday_rel] if yesterday_rel < len(all_data[row_i]) else None
                 t_rank = parse_rank(t_val)
-                y_rank = parse_rank(y_val)
                 row_num = start_row + row_i
-
-                if t_rank and y_rank:
-                    if t_rank < y_rank:
-                        green_rows.append(row_num)
-                    elif t_rank > y_rank:
-                        red_rows.append(row_num)
-                    else:
-                        white_rows.append(row_num)
-                elif t_rank and not y_rank:
+                bucket = _rank_color_bucket(t_rank)
+                if bucket == "green":
                     green_rows.append(row_num)
-                elif not t_rank and y_rank:
+                elif bucket == "yellow":
+                    yellow_rows.append(row_num)
+                elif bucket == "red":
                     red_rows.append(row_num)
                 else:
                     white_rows.append(row_num)
@@ -1226,6 +1212,8 @@ def color_all_sheets():
             data = []
             if green_rows:
                 data.append({"ranges": _merge_consecutive_rows(green_rows, sheet_id, col), "style": {"backColor": "#D5F5E3"}})
+            if yellow_rows:
+                data.append({"ranges": _merge_consecutive_rows(yellow_rows, sheet_id, col), "style": {"backColor": "#FCF3CF"}})
             if red_rows:
                 data.append({"ranges": _merge_consecutive_rows(red_rows, sheet_id, col), "style": {"backColor": "#FADBD8"}})
             if white_rows:
@@ -1237,8 +1225,9 @@ def color_all_sheets():
                 except Exception as e:
                     print(f"    列{col}上色失败: {e}", flush=True)
 
-            if col_pos % 5 == 0 or col_pos == len(date_cols) - 1:
-                print(f"  进度: {col_pos}/{len(date_cols)-1} 列", flush=True)
+            done_cols = col_pos + 1
+            if done_cols % 5 == 0 or done_cols == len(date_cols):
+                print(f"  进度: {done_cols}/{len(date_cols)} 列", flush=True)
             time.sleep(0.3)
 
         print(f"  ✅ {name} 完成", flush=True)
