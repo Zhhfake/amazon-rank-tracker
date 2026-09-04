@@ -754,6 +754,7 @@ def send_feishu_private_card(card):
 def send_feishu_notification(results_summary, notify_target="private"):
     """发送飞书卡片日报"""
     today_str = datetime.date.today().strftime("%m月%d日")
+    title_prefix = globals().get("NOTIFICATION_TITLE_PREFIX", "自然位排名日报")
     total_groups = len(results_summary)
     ok_count = 0
 
@@ -812,7 +813,7 @@ def send_feishu_notification(results_summary, notify_target="private"):
 
     card = {
         "header": {
-            "title": {"tag": "plain_text", "content": f"📊 自然位排名日报 · {today_str}"},
+            "title": {"tag": "plain_text", "content": f"📊 {title_prefix} · {today_str}"},
             "template": "green" if all_ok else "red"
         },
         "elements": elements
