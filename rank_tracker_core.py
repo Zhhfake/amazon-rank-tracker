@@ -751,51 +751,107 @@ def send_feishu_private_card(card):
         print(f"  飞书私聊通知发送异常: {e}")
 
 
+def build_top_keyword_rows_for_notification():
+    """读取指定邮编下每个产品前几个关键词的最新排名，用于简版播报。"""
+    zipcode = str(globals().get("NOTIFICATION_KEYWORD_ZIPCODE", "90001"))
+    keyword_count = int(globals().get("NOTIFICATION_KEYWORD_COUNT", 3))
+    token_mgr = FeishuTokenManager()
+    rows = []
+    completed = 0
+    total = 0
+
+    for config in PRODUCTS:
+        name = config["name"]
+        sheet_id = config["sheet_id"]
+        date_row = config.get("date_row", 1)
+        zipcode_row = config.get("zipcode_row", date_row + 1)
+        start_row = config["kw_start_row"]
+        min_col_idx = col_index(config.get("result_start_col", "A"))
+        kw_col = config["kw_col"]
+        end_row = start_row + keyword_count - 1
+        rows.append(f"**{name}**")
+        try:
+            today_col_idx = find_latest_zipcode_column(
+                token_mgr.token, sheet_id, date_row, zipcode_row, zipcode, min_col_idx
+            )
+            base = f"https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{SPREADSHEET_TOKEN}"
+            kw_resp = feishu_api(
+                "GET",
+                f"{base}/values/{sheet_id}!{kw_col}{start_row}:{kw_col}{end_row}",
+                token=token_mgr.token,
+            )
+            kw_rows = kw_resp["data"]["valueRange"].get("values", [])
+            rank_rows = []
+            if today_col_idx is not None:
+                rank_rows = read_existing_column(
+                    token_mgr.token, sheet_id, col_letter(today_col_idx), start_row, end_row
+                )
+            for i in range(keyword_count):
+                keyword = kw_rows[i][0] if i < len(kw_rows) and kw_rows[i] else ""
+                rank = rank_rows[i][0] if i < len(rank_rows) and rank_rows[i] else "—"
+                rank_num = parse_rank(rank)
+                icon = "✅" if rank_num and rank_num <= 4 else "⚠️" if rank_num and rank_num <= 8 else "❌" if rank_num else "—"
+                rows.append(f"{icon} {keyword}：{rank}")
+                total += 1
+                if rank_num:
+                    completed += 1
+        except Exception as e:
+            rows.append(f"❌ 读取 {zipcode} 排名失败：{e}")
+    return rows, completed, total, zipcode
+
+
 def send_feishu_notification(results_summary, notify_target="private"):
     """发送飞书卡片日报"""
     today_str = datetime.date.today().strftime("%m月%d日")
     title_prefix = globals().get("NOTIFICATION_TITLE_PREFIX", "自然位排名日报")
-    total_groups = len(results_summary)
-    ok_count = 0
+    if globals().get("NOTIFICATION_TOP_KEYWORDS_ONLY"):
+        rows, ok_count, total_units, zipcode = build_top_keyword_rows_for_notification()
+        total_groups = len(PRODUCTS)
+        note_text = f"仅展示 {zipcode} 前 {globals().get('NOTIFICATION_KEYWORD_COUNT', 3)} 个搜索词，{ok_count}/{total_units} 个词有排名"
+        all_ok = ok_count == total_units
+    else:
+        total_groups = len(results_summary)
+        ok_count = 0
 
-    rows = []
-    for name, info in results_summary.items():
-        if isinstance(info, str):
-            rows.append(f"❌ **{name}**：{info}")
-        else:
-            zip_rows = info.get("zipcodes")
-            if zip_rows:
-                rows.append(f"**{name}**")
-                for zip_info in zip_rows:
-                    if isinstance(zip_info, str):
-                        rows.append(f"❌ {zip_info}")
-                        continue
-                    found = zip_info.get("found", 0)
-                    total = zip_info.get("total", 0)
+        rows = []
+        for name, info in results_summary.items():
+            if isinstance(info, str):
+                rows.append(f"❌ **{name}**：{info}")
+            else:
+                zip_rows = info.get("zipcodes")
+                if zip_rows:
+                    rows.append(f"**{name}**")
+                    for zip_info in zip_rows:
+                        if isinstance(zip_info, str):
+                            rows.append(f"❌ {zip_info}")
+                            continue
+                        found = zip_info.get("found", 0)
+                        total = zip_info.get("total", 0)
+                        coverage = found * 100 // total if total else 0
+                        icon = "✅" if coverage >= 85 else "⚠️" if coverage >= 50 else "❌"
+                        if coverage >= 85:
+                            ok_count += 1
+                        rows.append(f"{icon} {zip_info.get('zipcode')}：{found}/{total}（{coverage}%）")
+                else:
+                    found = info.get("found", 0)
+                    total = info.get("total", 0)
                     coverage = found * 100 // total if total else 0
                     icon = "✅" if coverage >= 85 else "⚠️" if coverage >= 50 else "❌"
                     if coverage >= 85:
                         ok_count += 1
-                    rows.append(f"{icon} {zip_info.get('zipcode')}：{found}/{total}（{coverage}%）")
-            else:
-                found = info.get("found", 0)
-                total = info.get("total", 0)
-                coverage = found * 100 // total if total else 0
-                icon = "✅" if coverage >= 85 else "⚠️" if coverage >= 50 else "❌"
-                if coverage >= 85:
-                    ok_count += 1
-                rows.append(f"{icon} **{name}**：{found}/{total}（{coverage}%）")
+                    rows.append(f"{icon} **{name}**：{found}/{total}（{coverage}%）")
 
-    total_units = sum(
-        len(v.get("zipcodes", [])) if isinstance(v, dict) and v.get("zipcodes") else 1
-        for v in results_summary.values()
-    )
-    all_ok = ok_count == total_units
+        total_units = sum(
+            len(v.get("zipcodes", [])) if isinstance(v, dict) and v.get("zipcodes") else 1
+            for v in results_summary.values()
+        )
+        note_text = f"共 {total_groups} 个产品，{ok_count}/{total_units} 个邮编完成"
+        all_ok = ok_count == total_units
 
     elements = [
         {"tag": "div", "text": {"tag": "lark_md", "content": "\n".join(rows)}},
         {"tag": "hr"},
-        {"tag": "note", "elements": [{"tag": "plain_text", "content": f"共 {total_groups} 个产品，{ok_count}/{total_units} 个邮编完成"}]},
+        {"tag": "note", "elements": [{"tag": "plain_text", "content": note_text}]},
     ]
     spreadsheet_url = globals().get("SPREADSHEET_URL")
     if spreadsheet_url:
