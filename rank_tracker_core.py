@@ -1240,7 +1240,7 @@ def notify_only():
             print(f"  ❌ {name}: {e}")
             summary[name] = str(e)
 
-    send_feishu_notification(summary)
+    send_feishu_notification(summary, globals().get("NOTIFICATION_DEFAULT_TARGET", "private"))
 
 
 def check_only():
@@ -1366,7 +1366,7 @@ def main():
     target_sheet = None
     keyword_limit = None
     skip_if_recent_minutes = None
-    notify_target = "private"
+    notify_target = globals().get("NOTIFICATION_DEFAULT_TARGET", "private")
     args = sys.argv[1:]
     if "--sheet" in args:
         idx = args.index("--sheet")
