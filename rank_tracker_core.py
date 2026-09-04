@@ -11,6 +11,7 @@ Amazon 自然位排名追踪 — 核心逻辑
   python rank_to_feishu.py --notify-only      # 只发飞书日报（不查排名）
   python rank_to_feishu.py --color-all        # 给所有历史数据补上色
   python rank_to_feishu.py --limit 50         # 最多查50个新词（配合断点续传分段跑）
+  python rank_to_feishu.py --skip-if-recent 55 # 55分钟内跑过则跳过（给云端定时用）
 """
 
 import urllib.request, urllib.parse, urllib.error, re, time, json, sys, datetime, os, signal, traceback, random
@@ -108,6 +109,64 @@ def _is_date_value(v):
     if isinstance(v, str) and re.match(r'^\d{1,2}/\d{1,2}-\d{5}$', v):
         return True
     if isinstance(v, (int, float)) and v > 40000:
+        return True
+    return False
+
+
+def _parse_run_label_datetime(value, now=None):
+    """解析表头里的 'M/D HH:MM' 批次时间。"""
+    if not value:
+        return None
+    text = str(value).strip()
+    m = re.match(r'^(\d{1,2})/(\d{1,2})\s+(\d{1,2}):(\d{2})$', text)
+    if not m:
+        return None
+    now = now or datetime.datetime.now()
+    month, day, hour, minute = map(int, m.groups())
+    try:
+        dt = datetime.datetime(now.year, month, day, hour, minute)
+    except ValueError:
+        return None
+    if dt - now > datetime.timedelta(days=180):
+        dt = dt.replace(year=dt.year - 1)
+    return dt
+
+
+def latest_sheet_run_time(token, config):
+    """读取一个产品表里最近一次带时间的批次表头。"""
+    sheet_id = config["sheet_id"]
+    date_row = config.get("date_row", 1)
+    min_col_idx = col_index(config.get("result_start_col", "A"))
+    base = f"https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{SPREADSHEET_TOKEN}"
+    resp = feishu_api("GET", f"{base}/values/{sheet_id}!A{date_row}:ZZ{date_row}", token=token)
+    row = resp["data"]["valueRange"].get("values", [[]])[0]
+    now = datetime.datetime.now()
+    latest = None
+    for value in row[min_col_idx:]:
+        dt = _parse_run_label_datetime(value, now)
+        if dt and (latest is None or dt > latest):
+            latest = dt
+    return latest
+
+
+def should_skip_recent_run(token, minutes):
+    """云端高频触发时，避免短时间内重复写入。"""
+    latest_times = []
+    for config in PRODUCTS:
+        try:
+            latest = latest_sheet_run_time(token, config)
+            if latest:
+                latest_times.append(latest)
+        except Exception as e:
+            print(f"  ⚠ 检查最近运行时间失败 {config.get('name')}: {e}", flush=True)
+    if not latest_times:
+        return False
+
+    latest = max(latest_times)
+    age_minutes = (datetime.datetime.now() - latest).total_seconds() / 60
+    print(f"最近一次表格写入: {latest.strftime('%m/%d %H:%M')}，距今 {age_minutes:.0f} 分钟", flush=True)
+    if age_minutes < minutes:
+        print(f"✅ {minutes} 分钟内已经跑过，本次云端触发跳过，避免重复写表。", flush=True)
         return True
     return False
 
@@ -1249,6 +1308,7 @@ def main():
     target_asin = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else None
     target_sheet = None
     keyword_limit = None
+    skip_if_recent_minutes = None
     notify_target = "private"
     args = sys.argv[1:]
     if "--sheet" in args:
@@ -1258,6 +1318,9 @@ def main():
     if "--limit" in args:
         idx = args.index("--limit")
         keyword_limit = int(args[idx + 1])
+    if "--skip-if-recent" in args:
+        idx = args.index("--skip-if-recent")
+        skip_if_recent_minutes = int(args[idx + 1])
     if "--notify" in args:
         idx = args.index("--notify")
         notify_target = args[idx + 1]
@@ -1292,6 +1355,8 @@ def main():
 
     print("初始化飞书连接...")
     token_mgr = FeishuTokenManager()
+    if skip_if_recent_minutes and should_skip_recent_run(token_mgr.token, skip_if_recent_minutes):
+        return
     print(f"本次运行批次: {run_label}")
     print("准备就绪!\n")
 

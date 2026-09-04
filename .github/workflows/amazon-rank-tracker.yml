@@ -2,8 +2,9 @@ name: Amazon Rank Tracker
 
 on:
   schedule:
-    # Every hour at minute 17, avoiding GitHub's busy top-of-hour window.
-    - cron: "17 * * * *"
+    # GitHub schedule can be delayed or skipped, so try several off-peak minutes.
+    # The script exits early if the sheet was updated in the last 55 minutes.
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
 
 concurrency:
@@ -38,4 +39,4 @@ jobs:
           python -m playwright install chromium --with-deps
 
       - name: Run tracker
-        run: python -u rank_tracker_core.py --notify private
+        run: python -u rank_tracker_core.py --notify private --skip-if-recent 55
