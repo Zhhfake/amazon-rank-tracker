@@ -790,7 +790,7 @@ def build_top_keyword_rows_for_notification():
                 keyword = kw_rows[i][0] if i < len(kw_rows) and kw_rows[i] else ""
                 rank = rank_rows[i][0] if i < len(rank_rows) and rank_rows[i] else "—"
                 rank_num = parse_rank(rank)
-                icon = "✅" if rank_num and rank_num <= 4 else "⚠️" if rank_num and rank_num <= 8 else "❌" if rank_num else "—"
+                icon = "🟢" if rank_num and rank_num <= 4 else "🟡" if rank_num and rank_num <= 8 else "🔴" if rank_num else "⚪"
                 rows.append(f"{icon} {keyword}：{rank}")
                 total += 1
                 if rank_num:
