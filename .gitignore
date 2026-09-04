@@ -2,6 +2,5 @@
 __pycache__/
 *.pyc
 local_secrets.py
-run_18_rank_tracker.py
 rank_tracker_*.log
 detail_anomaly_state.json
