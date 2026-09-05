@@ -461,7 +461,7 @@ class AmazonRanker:
             pass
 
     def find_rank(self, keyword, target_asin, max_pages=MAX_PAGES):
-        """搜索关键词，返回目标 ASIN 的自然位排名，如 'Page 2 · #30'"""
+        """搜索关键词，只返回独立商品卡片中的目标 ASIN 自然位。"""
         return self.find_ranks(keyword, [target_asin], max_pages=max_pages).get(target_asin, "—")
 
     def find_ranks(self, keyword, target_asins, max_pages=MAX_PAGES):
@@ -495,8 +495,6 @@ class AmazonRanker:
                 return results
 
         overall_organic = 0
-        swatch_results = {}
-
         for page in range(1, max_pages + 1):
             url = f"https://www.amazon.com/s?k={urllib.parse.quote(keyword)}&page={page}"
             try:
@@ -529,10 +527,6 @@ class AmazonRanker:
                 if result_asin in target_set and results[result_asin] == "—":
                     results[result_asin] = f"Page {page} · #{overall_organic}"
 
-                for target_asin in target_asins:
-                    if results[target_asin] == "—" and target_asin not in swatch_results and f"/dp/{target_asin}" in section:
-                        swatch_results[target_asin] = f"Page {page} · #{overall_organic}(swatch)"
-
             if all(v != "—" for v in results.values()):
                 return results
 
@@ -541,9 +535,6 @@ class AmazonRanker:
             if page < max_pages:
                 time.sleep(DELAY_BETWEEN_PAGES + random.uniform(-0.5, 1))
 
-        for asin, rank in swatch_results.items():
-            if results.get(asin) == "—":
-                results[asin] = rank
         return results
 
 
