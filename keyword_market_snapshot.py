@@ -18,7 +18,8 @@ import time
 import urllib.parse
 
 from config import FEISHU_PRIVATE_OPEN_ID, ZIPCODE
-from rank_tracker_core import AmazonRanker, FeishuTokenManager, col_letter, feishu_api
+import rank_tracker_core as core
+from rank_tracker_core import AmazonRanker, FeishuTokenManager, col_letter, feishu_api, send_feishu_private_card
 
 try:
     from keyword_market_config import (
@@ -262,6 +263,49 @@ def first_pages_organic_results(ranker, keyword, max_pages=3):
     return results
 
 
+def send_private_notification(keyword, pages, zip_summaries, spreadsheet_url, run_label):
+    """发送竞品快照完成通知，只发给配置的个人 open_id。"""
+    summary_rows = [
+        f"关键词：{keyword}",
+        f"抓取范围：前 {pages} 页，独立自然商品（不含广告和变体）",
+    ]
+    total_results = 0
+    for zipcode, count in zip_summaries.items():
+        total_results += count
+        summary_rows.append(f"{zipcode}：{count} 个自然商品")
+
+    elements = [
+        {"tag": "div", "text": {"tag": "lark_md", "content": "\n".join(summary_rows)}},
+        {"tag": "hr"},
+        {"tag": "note", "elements": [{"tag": "plain_text", "content": f"更新时间：{run_label}，共抓到 {total_results} 条结果"}]},
+    ]
+    if spreadsheet_url:
+        elements.append({
+            "tag": "action",
+            "actions": [{
+                "tag": "button",
+                "text": {"tag": "plain_text", "content": "打开竞品表格"},
+                "type": "primary",
+                "url": spreadsheet_url,
+            }],
+        })
+
+    card = {
+        "header": {
+            "title": {"tag": "plain_text", "content": "📊 竞品前三页自然排名"},
+            "template": "green",
+        },
+        "elements": elements,
+    }
+    # 私聊发送函数读取核心模块中的表格链接，这里临时替换为竞品表链接。
+    previous_url = core.SPREADSHEET_URL
+    core.SPREADSHEET_URL = spreadsheet_url
+    try:
+        send_feishu_private_card(card)
+    finally:
+        core.SPREADSHEET_URL = previous_url
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="抓取单个关键词前几页独立自然位竞对快照")
     parser.add_argument("keyword", help="要搜索的 Amazon 关键词")
@@ -305,6 +349,7 @@ def main():
         ["邮编", "页码", "页内自然位", "自然排名", "ASIN", "评分", "评分数量", "价格", "标题"],
     ]
     own_rows = []
+    zip_summaries = {}
 
     for zipcode in zipcodes:
         print(f"查询: {keyword} / {zipcode}", flush=True)
@@ -314,6 +359,7 @@ def main():
         finally:
             ranker.close()
 
+        zip_summaries[zipcode] = len(results)
         for result in results:
             row_number = len(rows) + 1
             rows.append([
@@ -334,6 +380,7 @@ def main():
 
     write_values(token_mgr.token, spreadsheet_token, snapshot_sheet_id, "A1", rows)
     style_rows(token_mgr.token, spreadsheet_token, snapshot_sheet_id, own_rows)
+    send_private_notification(keyword, pages, zip_summaries, spreadsheet_url or spreadsheet_token, run_label)
 
     print("\n✅ 关键词竞对快照完成")
     print(spreadsheet_url or spreadsheet_token)
