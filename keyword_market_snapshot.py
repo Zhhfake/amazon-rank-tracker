@@ -145,7 +145,7 @@ def style_rows(token, spreadsheet_token, sheet_id, own_rows):
     data = []
     if own_rows:
         data.append({
-            "ranges": [f"{sheet_id}!A{row}:I{row}" for row in own_rows],
+            "ranges": [f"{sheet_id}!A{row}:J{row}" for row in own_rows],
             "style": {"backColor": "#FFF2CC"},
         })
     if not data:
@@ -165,6 +165,12 @@ def extract_title(section):
         if match:
             return clean_text(match.group(1))
     return ""
+
+
+def extract_brand(title):
+    """按约定取商品标题的第一个词作为品牌。"""
+    first_word = re.split(r"\s+", (title or "").strip(), maxsplit=1)[0]
+    return first_word.strip("[](){}<>\"'.,:;|-")
 
 
 def extract_rating(section):
@@ -252,6 +258,7 @@ def first_pages_organic_results(ranker, keyword, max_pages=3):
                 "page_organic_rank": page_organic_rank,
                 "natural_rank": natural_rank,
                 "asin": asin,
+                "brand": extract_brand(title),
                 "rating": extract_rating(section),
                 "review_count": extract_review_count(section),
                 "price": extract_price(section),
@@ -346,7 +353,7 @@ def main():
         ["标黄ASIN", ", ".join(sorted(target_asins))],
         ["表格链接", spreadsheet_url or spreadsheet_token],
         [],
-        ["邮编", "页码", "页内自然位", "自然排名", "ASIN", "评分", "评分数量", "价格", "标题"],
+        ["邮编", "页码", "页内自然位", "自然排名", "ASIN", "品牌", "评分", "评分数量", "价格", "标题"],
     ]
     own_rows = []
     zip_summaries = {}
@@ -368,6 +375,7 @@ def main():
                 result["page_organic_rank"],
                 result["natural_rank"],
                 result["asin"],
+                result["brand"],
                 result["rating"],
                 result["review_count"],
                 result["price"],
@@ -375,7 +383,7 @@ def main():
             ])
             if result["asin"] in target_asins:
                 own_rows.append(row_number)
-        rows.append(["", "", "", "", "", "", "", "", ""])
+        rows.append(["", "", "", "", "", "", "", "", "", ""])
         time.sleep(1)
 
     write_values(token_mgr.token, spreadsheet_token, snapshot_sheet_id, "A1", rows)
