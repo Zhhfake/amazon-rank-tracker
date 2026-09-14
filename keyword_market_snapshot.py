@@ -276,17 +276,18 @@ def send_private_notification(keyword, results_by_zipcode, target_asins, spreads
     first_page_results = [
         result
         for result in results_by_zipcode.get(notification_zipcode, [])
-        if result["page"] == 1 and result["asin"] not in target_asins
+        if result["page"] == 1
     ]
     first_page_results.sort(key=lambda result: result["natural_rank"])
     summary_rows = [
         f"关键词：{keyword}",
-        f"邮编：{notification_zipcode}，第 1 页独立自然竞品",
+        f"邮编：{notification_zipcode}，第 1 页独立自然商品（含我方）",
     ]
     if first_page_results:
         for result in first_page_results:
             brand = result["brand"] or "未识别品牌"
-            summary_rows.append(f"{brand}：自然位 #{result['natural_rank']}")
+            owner_label = "（我方）" if result["asin"] in target_asins else ""
+            summary_rows.append(f"{brand}{owner_label}：自然位 #{result['natural_rank']}")
     else:
         summary_rows.append("未抓到独立自然竞品")
 
@@ -308,7 +309,7 @@ def send_private_notification(keyword, results_by_zipcode, target_asins, spreads
 
     card = {
         "header": {
-            "title": {"tag": "plain_text", "content": "📊 90001第一页竞品自然排名"},
+            "title": {"tag": "plain_text", "content": "📊 90001第一页品牌自然排名"},
             "template": "green",
         },
         "elements": elements,
