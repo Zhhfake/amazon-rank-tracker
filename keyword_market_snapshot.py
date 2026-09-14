@@ -15,6 +15,7 @@ import os
 import re
 import sys
 import time
+import unicodedata
 import urllib.parse
 
 from config import FEISHU_PRIVATE_OPEN_ID, ZIPCODE
@@ -173,6 +174,15 @@ def extract_brand(title):
     return first_word.strip("[](){}<>\"'.,:;|-")
 
 
+def display_width(text):
+    """计算中英文混排文本在等宽字体中的显示宽度。"""
+    return sum(2 if unicodedata.east_asian_width(char) in "WFA" else 1 for char in text)
+
+
+def pad_display(text, width):
+    return text + " " * max(0, width - display_width(text))
+
+
 def extract_rating(section):
     patterns = [
         r'([0-5](?:\.\d)?) out of 5 stars',
@@ -284,17 +294,30 @@ def send_private_notification(keyword, results_by_zipcode, target_asins, spreads
         f"邮编：{notification_zipcode}，第 1 页独立自然商品（含我方）",
     ]
     if first_page_results:
+        display_rows = []
         for result in first_page_results:
             brand = result["brand"] or "未识别品牌"
             owner_label = "（我方）" if result["asin"] in target_asins else ""
-            summary_rows.append(f"{brand}{owner_label}：自然位 #{result['natural_rank']}")
+            display_rows.append((f"{brand}{owner_label}", result["natural_rank"]))
+        brand_width = max(display_width("品牌"), *(display_width(brand) for brand, _ in display_rows))
+        rank_lines = [
+            f"{pad_display('品牌', brand_width)}  自然位",
+            f"{'-' * brand_width}  ------",
+        ]
+        rank_lines.extend(
+            f"{pad_display(brand, brand_width)}  #{rank:>2}"
+            for brand, rank in display_rows
+        )
+        rank_table = "```\n" + "\n".join(rank_lines) + "\n```"
+        notification_content = "\n".join(summary_rows) + "\n\n" + rank_table
     else:
         summary_rows.append("未抓到独立自然竞品")
+        notification_content = "\n".join(summary_rows)
 
     elements = [
-        {"tag": "div", "text": {"tag": "lark_md", "content": "\n".join(summary_rows)}},
+        {"tag": "div", "text": {"tag": "lark_md", "content": notification_content}},
         {"tag": "hr"},
-        {"tag": "note", "elements": [{"tag": "plain_text", "content": f"更新时间：{run_label}，共 {len(first_page_results)} 个竞品"}]},
+        {"tag": "note", "elements": [{"tag": "plain_text", "content": f"更新时间：{run_label}，共 {len(first_page_results)} 个独立自然商品（含我方）"}]},
     ]
     if spreadsheet_url:
         elements.append({
