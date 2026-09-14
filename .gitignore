@@ -2,5 +2,6 @@
 __pycache__/
 *.pyc
 local_secrets.py
+keyword_market_config.py
 rank_tracker_*.log
 detail_anomaly_state.json
