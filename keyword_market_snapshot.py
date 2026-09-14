@@ -270,21 +270,30 @@ def first_pages_organic_results(ranker, keyword, max_pages=3):
     return results
 
 
-def send_private_notification(keyword, pages, zip_summaries, spreadsheet_url, run_label):
-    """发送竞品快照完成通知，只发给配置的个人 open_id。"""
+def send_private_notification(keyword, results_by_zipcode, target_asins, spreadsheet_url, run_label):
+    """发送 90001 第一页竞品品牌与自然位通知，只发给个人 open_id。"""
+    notification_zipcode = "90001"
+    first_page_results = [
+        result
+        for result in results_by_zipcode.get(notification_zipcode, [])
+        if result["page"] == 1 and result["asin"] not in target_asins
+    ]
+    first_page_results.sort(key=lambda result: result["natural_rank"])
     summary_rows = [
         f"关键词：{keyword}",
-        f"抓取范围：前 {pages} 页，独立自然商品（不含广告和变体）",
+        f"邮编：{notification_zipcode}，第 1 页独立自然竞品",
     ]
-    total_results = 0
-    for zipcode, count in zip_summaries.items():
-        total_results += count
-        summary_rows.append(f"{zipcode}：{count} 个自然商品")
+    if first_page_results:
+        for result in first_page_results:
+            brand = result["brand"] or "未识别品牌"
+            summary_rows.append(f"{brand}：自然位 #{result['natural_rank']}")
+    else:
+        summary_rows.append("未抓到独立自然竞品")
 
     elements = [
         {"tag": "div", "text": {"tag": "lark_md", "content": "\n".join(summary_rows)}},
         {"tag": "hr"},
-        {"tag": "note", "elements": [{"tag": "plain_text", "content": f"更新时间：{run_label}，共抓到 {total_results} 条结果"}]},
+        {"tag": "note", "elements": [{"tag": "plain_text", "content": f"更新时间：{run_label}，共 {len(first_page_results)} 个竞品"}]},
     ]
     if spreadsheet_url:
         elements.append({
@@ -299,7 +308,7 @@ def send_private_notification(keyword, pages, zip_summaries, spreadsheet_url, ru
 
     card = {
         "header": {
-            "title": {"tag": "plain_text", "content": "📊 竞品前三页自然排名"},
+            "title": {"tag": "plain_text", "content": "📊 90001第一页竞品自然排名"},
             "template": "green",
         },
         "elements": elements,
@@ -356,7 +365,7 @@ def main():
         ["邮编", "页码", "页内自然位", "自然排名", "ASIN", "品牌", "评分", "评分数量", "价格", "标题"],
     ]
     own_rows = []
-    zip_summaries = {}
+    results_by_zipcode = {}
 
     for zipcode in zipcodes:
         print(f"查询: {keyword} / {zipcode}", flush=True)
@@ -366,7 +375,7 @@ def main():
         finally:
             ranker.close()
 
-        zip_summaries[zipcode] = len(results)
+        results_by_zipcode[zipcode] = results
         for result in results:
             row_number = len(rows) + 1
             rows.append([
@@ -388,7 +397,7 @@ def main():
 
     write_values(token_mgr.token, spreadsheet_token, snapshot_sheet_id, "A1", rows)
     style_rows(token_mgr.token, spreadsheet_token, snapshot_sheet_id, own_rows)
-    send_private_notification(keyword, pages, zip_summaries, spreadsheet_url or spreadsheet_token, run_label)
+    send_private_notification(keyword, results_by_zipcode, target_asins, spreadsheet_url or spreadsheet_token, run_label)
 
     print("\n✅ 关键词竞对快照完成")
     print(spreadsheet_url or spreadsheet_token)
