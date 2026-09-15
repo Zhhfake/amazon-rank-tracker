@@ -1,0 +1,45 @@
+name: Amazon Keyword Market Snapshot
+
+on:
+  schedule:
+    # 每小时运行一次；GitHub 定时任务可能有少量延迟。
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: amazon-keyword-market
+  cancel-in-progress: false
+
+jobs:
+  run-keyword-market-snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      TZ: Asia/Shanghai
+      FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+      FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+      FEISHU_PRIVATE_OPEN_ID: ${{ secrets.FEISHU_PRIVATE_OPEN_ID }}
+      MARKET_KEYWORD_SPREADSHEET_TOKEN: ${{ secrets.MARKET_KEYWORD_SPREADSHEET_TOKEN }}
+      MARKET_KEYWORD_SPREADSHEET_URL: ${{ secrets.MARKET_KEYWORD_SPREADSHEET_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check competitor table secrets
+        run: |
+          test -n "$MARKET_KEYWORD_SPREADSHEET_TOKEN" || { echo "Missing MARKET_KEYWORD_SPREADSHEET_TOKEN"; exit 1; }
+          test -n "$MARKET_KEYWORD_SPREADSHEET_URL" || { echo "Missing MARKET_KEYWORD_SPREADSHEET_URL"; exit 1; }
+
+      - name: Install browser
+        run: |
+          python -m pip install --upgrade pip
+          pip install playwright
+          python -m playwright install chromium --with-deps
+
+      - name: Run competitor snapshot
+        run: python -u keyword_market_snapshot.py "iphone 18 pro screen protector" --pages 3 --zipcodes 90001,77001,33101

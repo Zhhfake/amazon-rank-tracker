@@ -30,3 +30,18 @@
 `amazon_rank_tracker/local_secrets.py` 只给你本地双击运行使用，已经放进 `.gitignore`，不要上传到 GitHub。
 
 如果 GitHub Actions 里频繁遇到 Amazon 503，说明 GitHub 服务器 IP 被 Amazon 限制了。那时建议改用 GitHub self-hosted runner，让 GitHub 定时任务实际跑在你自己的 Mac 上。
+
+## 关键词竞品前三页追踪
+
+竞品追踪工作流文件：
+
+`.github/workflows/amazon-keyword-market.yml`
+
+该工作流每小时运行一次，抓取 `iphone 18 pro screen protector` 前三页的独立自然商品，完成后通过飞书应用私聊发送 90001 第 1 页的品牌和自然位。
+
+除上面的 6 个 Secrets 外，还需要添加：
+
+- `MARKET_KEYWORD_SPREADSHEET_TOKEN`
+- `MARKET_KEYWORD_SPREADSHEET_URL`
+
+这两个值对应竞品表的 token 和完整表格链接。添加后可以在 Actions 中手动运行 `Amazon Keyword Market Snapshot` 验证。
