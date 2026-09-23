@@ -19,7 +19,14 @@ import urllib.parse
 
 from config import FEISHU_PRIVATE_OPEN_ID, ZIPCODE
 import rank_tracker_core as core
-from rank_tracker_core import AmazonRanker, FeishuTokenManager, col_letter, feishu_api, send_feishu_private_card
+from rank_tracker_core import (
+    AmazonRanker,
+    FeishuTokenManager,
+    col_letter,
+    feishu_api,
+    send_feishu_group_card,
+    send_feishu_private_card,
+)
 
 try:
     from keyword_market_config import (
@@ -271,7 +278,7 @@ def first_pages_organic_results(ranker, keyword, max_pages=3):
 
 
 def send_private_notification(keyword, results_by_zipcode, target_asins, spreadsheet_url, run_label):
-    """发送 90001 第一页竞品品牌与自然位通知，只发给个人 open_id。"""
+    """发送 90001 第一页竞品品牌与自然位通知到私聊和群聊。"""
     notification_zipcode = "90001"
     first_page_results = [
         result
@@ -322,6 +329,7 @@ def send_private_notification(keyword, results_by_zipcode, target_asins, spreads
     core.SPREADSHEET_URL = spreadsheet_url
     try:
         send_feishu_private_card(card)
+        send_feishu_group_card(card)
     finally:
         core.SPREADSHEET_URL = previous_url
 
