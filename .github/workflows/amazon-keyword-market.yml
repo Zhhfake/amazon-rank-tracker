@@ -42,5 +42,12 @@ jobs:
           pip install playwright
           python -m playwright install chromium --with-deps
 
-      - name: Run competitor snapshot
-        run: python -u keyword_market_snapshot.py "iphone 18 pro screen protector" --pages 3 --zipcodes 90001,77001,33101
+      - name: Run competitor snapshots
+        run: |
+          status=0
+          for keyword in \
+            "iphone 18 pro screen protector" \
+            "iphone 18 pro max screen protector"; do
+            python -u keyword_market_snapshot.py "$keyword" --pages 3 --zipcodes 90001,77001,33101 || status=1
+          done
+          exit "$status"

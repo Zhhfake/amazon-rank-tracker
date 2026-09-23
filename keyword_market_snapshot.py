@@ -38,6 +38,7 @@ except ImportError:
     LOCAL_MARKET_KEYWORD_SPREADSHEET_URL = ""
 
 DEFAULT_TARGET_ASINS = ["B0H5J2F9JL", "B0H5HXN247"]
+DEFAULT_KEYWORD = "iphone 18 pro screen protector"
 
 
 def clean_text(value):
@@ -125,6 +126,16 @@ def get_or_create_sheet(token, spreadsheet_token, title, index=0):
         if sheet.get("title") == title:
             return sheet.get("sheetId")
     return add_sheet(token, spreadsheet_token, title, index=index)
+
+
+def snapshot_sheet_title(keyword):
+    """保留旧关键词的原有 Sheet，其他关键词使用独立 Sheet。"""
+    normalized = keyword.strip().lower()
+    if normalized == DEFAULT_KEYWORD:
+        return "竞对快照"
+    if normalized == "iphone 18 pro max screen protector":
+        return "竞对快照 - 18PM"
+    return safe_sheet_title(f"竞对快照 - {keyword}", max_len=40)
 
 
 def write_values(token, spreadsheet_token, sheet_id, start_cell, values):
@@ -319,7 +330,7 @@ def send_private_notification(keyword, results_by_zipcode, target_asins, spreads
 
     card = {
         "header": {
-            "title": {"tag": "plain_text", "content": "📊 90001第一页品牌自然排名"},
+            "title": {"tag": "plain_text", "content": f"📊 {keyword} · 90001第一页品牌自然排名"},
             "template": "green",
         },
         "elements": elements,
@@ -365,7 +376,12 @@ def main():
         spreadsheet_token, spreadsheet_url = create_spreadsheet(token_mgr.token, title)
         grant_user_permission(token_mgr.token, spreadsheet_token)
 
-    snapshot_sheet_id = get_or_create_sheet(token_mgr.token, spreadsheet_token, "竞对快照", index=0)
+    snapshot_sheet_id = get_or_create_sheet(
+        token_mgr.token,
+        spreadsheet_token,
+        snapshot_sheet_title(keyword),
+        index=0,
+    )
     rows = [
         ["关键词", keyword],
         ["更新时间", run_label],

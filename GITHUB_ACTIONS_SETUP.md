@@ -37,7 +37,12 @@
 
 `.github/workflows/amazon-keyword-market.yml`
 
-该工作流每小时运行一次，抓取 `iphone 18 pro screen protector` 前三页的独立自然商品，完成后通过飞书应用私聊发送 90001 第 1 页的品牌和自然位。
+该工作流每小时运行一次，分别抓取以下两个关键词前三页的独立自然商品，并分别写入独立 Sheet：
+
+- `iphone 18 pro screen protector`
+- `iphone 18 pro max screen protector`
+
+每个关键词完成后，通过飞书应用私聊并发送群聊，播报 90001 第 1 页的品牌和自然位。
 
 除上面的 6 个 Secrets 外，还需要添加：
 
