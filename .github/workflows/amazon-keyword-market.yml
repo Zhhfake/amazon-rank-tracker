@@ -1,9 +1,6 @@
 name: Amazon Keyword Market Snapshot
 
 on:
-  push:
-    paths:
-      - ".github/.keyword-market-run-now"
   schedule:
     # 每小时运行一次；GitHub 定时任务可能有少量延迟。
     - cron: "17 * * * *"
