@@ -1,0 +1,27 @@
+name: Verify Feishu Webhook Secret
+
+on:
+  push:
+    paths:
+      - ".github/.verify-webhook-now"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
+    steps:
+      - name: Identify configured webhook without exposing it
+        run: |
+          actual=$(python -c 'import hashlib, os; print(hashlib.sha256(os.environ["FEISHU_WEBHOOK"].strip().encode()).hexdigest())')
+          if [ "$actual" = "634e29c801f86aa7a85605a8baafa9e3ef550fbe10ec42478dfcbcd87bd948b0" ]; then
+            echo "FEISHU_WEBHOOK_TARGET=OLD"
+          elif [ "$actual" = "3db8fbc65924493d4b2311b74a9ff34e86ae3c8a226b7e402d3740d34fc984b9" ]; then
+            echo "FEISHU_WEBHOOK_TARGET=NEW"
+          elif [ -z "$FEISHU_WEBHOOK" ]; then
+            echo "FEISHU_WEBHOOK_TARGET=EMPTY"
+            exit 1
+          else
+            echo "FEISHU_WEBHOOK_TARGET=OTHER"
+            exit 1
+          fi
