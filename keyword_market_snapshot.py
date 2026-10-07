@@ -239,6 +239,20 @@ def is_real_product_card(section, asin, title):
     return any(re.search(pattern, section, flags=re.I) for pattern in asin_link_patterns)
 
 
+def extract_card_asin(section):
+    """读取搜索结果卡片自己的主 ASIN，避免误取卡片内部变体 data-asin。"""
+    primary_patterns = [
+        r'data-csa-c-item-id="amzn1\.asin\.1\.([A-Z0-9]{10})"',
+        r'data-csa-c-item-id="amzn1\.asin\.([A-Z0-9]{10})(?:"|:)',
+    ]
+    for pattern in primary_patterns:
+        match = re.search(pattern, section[:5000], flags=re.I)
+        if match:
+            return match.group(1).upper()
+    fallback = re.search(r'data-asin="([A-Z0-9]{10})"', section, flags=re.I)
+    return fallback.group(1).upper() if fallback else ""
+
+
 def is_sponsored(section):
     first_chunk = section[:7000]
     return bool(re.search(r'Sponsored|AdHolder|s-sponsored|puis-sponsored-label', first_chunk, flags=re.I))
@@ -258,10 +272,9 @@ def first_pages_organic_results(ranker, keyword, max_pages=3):
         page_organic_rank = 0
         sections = re.split(r'(?=data-component-type="s-search-result")', html_text)
         for section in sections:
-            asin_match = re.search(r'data-asin="([A-Z0-9]{10})"', section)
-            if not asin_match:
+            asin = extract_card_asin(section)
+            if not asin:
                 continue
-            asin = asin_match.group(1)
             title = extract_title(section)
             # data-asin + 商品标题代表独立商品卡片；不扫描卡片内部的 /dp/ 变体链接。
             if not asin or not title or title.lower() == "search" or is_sponsored(section):
