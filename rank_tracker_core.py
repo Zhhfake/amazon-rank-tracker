@@ -104,7 +104,7 @@ def col_index(letter):
 
 def _is_date_value(v):
     """判断单元格值是否是日期（序列号或 M/D 字符串）"""
-    if isinstance(v, str) and re.match(r'^\d{1,2}/\d{1,2}$', v):
+    if isinstance(v, str) and re.match(r'^\d{1,2}/\d{1,2}(?:\s+\d{1,2}:\d{2})?$', v.strip()):
         return True
     if isinstance(v, str) and re.match(r'^\d{1,2}/\d{1,2}-\d{5}$', v):
         return True
@@ -565,9 +565,17 @@ def _merge_consecutive_rows(row_numbers, sheet_id, col):
     return ranges
 
 
-def _rank_color_bucket(rank):
-    """按当前自然排名分档：1-4绿，5-8黄，9名以后红。"""
+def _rank_color_bucket(rank, rank_text=None):
+    """按当前自然排名分档；18 系列按页码和页内位置单独处理。"""
     if not rank:
+        return "white"
+    if globals().get("RANK_COLOR_MODE") == "first_page_top10":
+        page_match = re.search(r"Page\s+(\d+)", str(rank_text or ""), flags=re.I)
+        page = int(page_match.group(1)) if page_match else None
+        if page == 1:
+            return "green" if rank <= 10 else "yellow"
+        if page and page >= 2:
+            return "red"
         return "white"
     if rank <= 4:
         return "green"
@@ -587,7 +595,7 @@ def apply_rank_colors(token, sheet_id, today_col_idx, start_row, today_values,
     for i, tv in enumerate(today_values):
         t_rank = parse_rank(tv[0] if tv else None)
         row_num = start_row + i
-        bucket = _rank_color_bucket(t_rank)
+        bucket = _rank_color_bucket(t_rank, tv[0] if tv else None)
         if bucket == "green":
             green_rows.append(row_num)
         elif bucket == "yellow":
@@ -1306,7 +1314,7 @@ def color_all_sheets():
                 t_val = all_data[row_i][today_rel] if today_rel < len(all_data[row_i]) else None
                 t_rank = parse_rank(t_val)
                 row_num = start_row + row_i
-                bucket = _rank_color_bucket(t_rank)
+                bucket = _rank_color_bucket(t_rank, t_val)
                 if bucket == "green":
                     green_rows.append(row_num)
                 elif bucket == "yellow":
