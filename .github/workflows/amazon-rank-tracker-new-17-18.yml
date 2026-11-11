@@ -4,6 +4,15 @@ on:
   schedule:
     - cron: "12,27,42,57 * * * *"
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "选择正常追踪或只发送通知测试"
+        type: choice
+        required: true
+        default: track
+        options:
+          - track
+          - notify_only
 
 concurrency:
   group: amazon-rank-tracker-new-17-18
@@ -44,4 +53,11 @@ jobs:
           python -m playwright install chromium --with-deps
 
       - name: Run new 18P 17P tracker
-        run: python -u run_new_17_18_rank_tracker.py --skip-if-recent 55
+        env:
+          TRACKER_MODE: ${{ inputs.mode || 'track' }}
+        run: |
+          if [ "$TRACKER_MODE" = "notify_only" ]; then
+            python -u run_new_17_18_rank_tracker.py --notify-only
+          else
+            python -u run_new_17_18_rank_tracker.py --skip-if-recent 55
+          fi
