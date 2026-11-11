@@ -17,7 +17,7 @@ jobs:
       TZ: Asia/Shanghai
       NEW_FEISHU_APP_ID: ${{ secrets.NEW_FEISHU_APP_ID }}
       NEW_FEISHU_APP_SECRET: ${{ secrets.NEW_FEISHU_APP_SECRET }}
-      FEISHU_PRIVATE_OPEN_ID: ${{ secrets.FEISHU_PRIVATE_OPEN_ID }}
+      NEW_FEISHU_PRIVATE_EMAIL: ${{ secrets.NEW_FEISHU_PRIVATE_EMAIL }}
       SPREADSHEET_NEW_TOKEN: ${{ secrets.SPREADSHEET_NEW_TOKEN }}
       SPREADSHEET_NEW_URL: ${{ secrets.SPREADSHEET_NEW_URL }}
     steps:
@@ -33,6 +33,7 @@ jobs:
         run: |
           test -n "$NEW_FEISHU_APP_ID" || { echo "Missing NEW_FEISHU_APP_ID"; exit 1; }
           test -n "$NEW_FEISHU_APP_SECRET" || { echo "Missing NEW_FEISHU_APP_SECRET"; exit 1; }
+          test -n "$NEW_FEISHU_PRIVATE_EMAIL" || { echo "Missing NEW_FEISHU_PRIVATE_EMAIL"; exit 1; }
           test -n "$SPREADSHEET_NEW_TOKEN" || { echo "Missing SPREADSHEET_NEW_TOKEN"; exit 1; }
           test -n "$SPREADSHEET_NEW_URL" || { echo "Missing SPREADSHEET_NEW_URL"; exit 1; }
 
