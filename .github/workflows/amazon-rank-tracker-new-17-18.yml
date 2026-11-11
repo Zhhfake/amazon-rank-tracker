@@ -15,12 +15,11 @@ jobs:
     timeout-minutes: 120
     env:
       TZ: Asia/Shanghai
-      FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
-      FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+      NEW_FEISHU_APP_ID: ${{ secrets.NEW_FEISHU_APP_ID }}
+      NEW_FEISHU_APP_SECRET: ${{ secrets.NEW_FEISHU_APP_SECRET }}
       FEISHU_PRIVATE_OPEN_ID: ${{ secrets.FEISHU_PRIVATE_OPEN_ID }}
       SPREADSHEET_NEW_TOKEN: ${{ secrets.SPREADSHEET_NEW_TOKEN }}
       SPREADSHEET_NEW_URL: ${{ secrets.SPREADSHEET_NEW_URL }}
-      FEISHU_18_WEBHOOK: ${{ secrets.FEISHU_18_WEBHOOK }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,6 +31,8 @@ jobs:
 
       - name: Check new tracker secrets
         run: |
+          test -n "$NEW_FEISHU_APP_ID" || { echo "Missing NEW_FEISHU_APP_ID"; exit 1; }
+          test -n "$NEW_FEISHU_APP_SECRET" || { echo "Missing NEW_FEISHU_APP_SECRET"; exit 1; }
           test -n "$SPREADSHEET_NEW_TOKEN" || { echo "Missing SPREADSHEET_NEW_TOKEN"; exit 1; }
           test -n "$SPREADSHEET_NEW_URL" || { echo "Missing SPREADSHEET_NEW_URL"; exit 1; }
 
