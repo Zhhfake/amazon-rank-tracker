@@ -132,6 +132,35 @@ def _parse_run_label_datetime(value, now=None):
     return dt
 
 
+def _sheet_header_date(value, now=None):
+    """Parse date headers in timestamp, date-only, or Excel serial form."""
+    now = now or datetime.datetime.now()
+    if isinstance(value, datetime.datetime):
+        return value.date()
+    if isinstance(value, datetime.date):
+        return value
+    if isinstance(value, (int, float)) and value > 40000:
+        try:
+            return (datetime.datetime(1899, 12, 30) + datetime.timedelta(days=float(value))).date()
+        except (OverflowError, ValueError):
+            return None
+
+    text = str(value or "").strip()
+    parsed = _parse_run_label_datetime(text, now)
+    if parsed:
+        return parsed.date()
+    match = re.match(r'^(\d{1,2})/(\d{1,2})$', text)
+    if not match:
+        return None
+    month, day = map(int, match.groups())
+    try:
+        result = datetime.date(now.year, month, day)
+    except ValueError:
+        return None
+    if result - now.date() > datetime.timedelta(days=180):
+        result = result.replace(year=result.year - 1)
+    return result
+
 def latest_sheet_run_time(token, config):
     """读取一个产品表里最近一次带时间的批次表头。"""
     sheet_id = config["sheet_id"]
@@ -280,6 +309,68 @@ def find_latest_zipcode_column(token, sheet_id, date_row, zipcode_row, zipcode, 
             return i
     return None
 
+
+def hide_old_date_columns(token, config, days=2):
+    """Hide result columns older than the cutoff; carry merged date headers rightward."""
+    sheet_id = config["sheet_id"]
+    date_row = config.get("date_row", 1)
+    zipcode_row = config.get("zipcode_row", date_row + 1)
+    min_col_idx = col_index(config.get("result_start_col", "A"))
+    cutoff = datetime.date.today() - datetime.timedelta(days=days)
+    base = f"https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{SPREADSHEET_TOKEN}"
+    resp = feishu_api(
+        "GET",
+        f"{base}/values/{sheet_id}!A{date_row}:ZZ{zipcode_row}",
+        token=token,
+    )
+    rows = resp["data"]["valueRange"].get("values", [])
+    date_values = rows[0] if rows else []
+    zip_offset = zipcode_row - date_row
+    zip_values = rows[zip_offset] if len(rows) > zip_offset else []
+    width = max(len(date_values), len(zip_values))
+
+    old_columns = []
+    current_date = None
+    for idx in range(min_col_idx, width):
+        raw_date = date_values[idx] if idx < len(date_values) else None
+        if raw_date not in (None, ""):
+            current_date = _sheet_header_date(raw_date)
+        zip_value = zip_values[idx] if idx < len(zip_values) else None
+        if zip_value not in (None, "") and current_date and current_date < cutoff:
+            old_columns.append(idx)
+
+    ranges = []
+    for idx in old_columns:
+        if not ranges or idx > ranges[-1][1]:
+            ranges.append([idx, idx + 1])
+        else:
+            ranges[-1][1] = idx + 1
+
+    for start_idx, end_idx in ranges:
+        result = feishu_api(
+            "PUT",
+            f"{base}/dimension_range",
+            {
+                "dimension": {
+                    "sheetId": sheet_id,
+                    "majorDimension": "COLUMNS",
+                    "startIndex": start_idx + 1,
+                    "endIndex": end_idx,
+                },
+                "dimensionProperties": {"visible": False},
+            },
+            token=token,
+        )
+        if result.get("code", 0) != 0:
+            raise RuntimeError(f"Hide columns failed: {result}")
+        print(
+            f"  🙈 已隐藏 {config.get('name', sheet_id)} 的旧日期列 "
+            f"{col_letter(start_idx)}:{col_letter(end_idx - 1)}（早于 {cutoff}）",
+            flush=True,
+        )
+    if not ranges:
+        print(f"  ✅ {config.get('name', sheet_id)} 没有早于 {cutoff} 的可隐藏列", flush=True)
+    return len(old_columns)
 
 def merge_date_header(token, sheet_id, date_row, start_col_idx, end_col_idx):
     """合并同一天多个邮编上方的日期单元格。失败不影响排名数据。"""
@@ -1510,6 +1601,18 @@ def main():
     for (sheet_id, date_row), cols in merge_groups.items():
         if cols:
             merge_date_header(token_mgr.token, sheet_id, date_row, min(cols), max(cols))
+
+    auto_hide_days = globals().get("AUTO_HIDE_OLD_DATE_COLUMNS_DAYS")
+    if auto_hide_days is not None:
+        seen_sheets = set()
+        for config in PRODUCTS:
+            if config["sheet_id"] in seen_sheets:
+                continue
+            seen_sheets.add(config["sheet_id"])
+            try:
+                hide_old_date_columns(token_mgr.token, config, int(auto_hide_days))
+            except Exception as e:
+                print(f"  ⚠ 自动隐藏旧日期列失败 {config.get('name')}: {e}", flush=True)
 
     is_partial = target_asin or target_sheet
     should_notify = notify_target != "none" and (not is_partial or notify_target in ("private", "both"))
