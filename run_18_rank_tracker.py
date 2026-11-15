@@ -26,6 +26,7 @@ core.NOTIFICATION_TOP_KEYWORDS_ONLY = True
 core.NOTIFICATION_KEYWORD_ZIPCODE = "90001"
 core.NOTIFICATION_KEYWORD_COUNT = 3
 core.RANK_COLOR_MODE = "first_page_top10"
+core.AUTO_HIDE_OLD_DATE_COLUMNS_DAYS = 2
 
 core.PRODUCTS = [
     {
@@ -38,7 +39,7 @@ core.PRODUCTS = [
         "date_row": 1,
         "zipcode_row": 2,
         "result_start_col": "C",
-        "zipcodes": ["90001", "77001", "33101"],
+        "zipcodes": ["90001", "77001", "33101", "10001"],
     },
     {
         "asin": "B0H5HXN247",
@@ -50,7 +51,7 @@ core.PRODUCTS = [
         "date_row": 1,
         "zipcode_row": 2,
         "result_start_col": "C",
-        "zipcodes": ["90001", "77001", "33101"],
+        "zipcodes": ["90001", "77001", "33101", "10001"],
     },
 ]
 
