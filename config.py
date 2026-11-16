@@ -73,7 +73,8 @@ PRODUCTS = [
         "date_row": 1,
         "zipcode_row": 2,
         "result_start_col": "C",
-        "zipcodes": ["90001", "77001", "33101"],
+        "zipcodes": ["90001", "77001", "33101", "10001"],
+        "auto_hide_old_date_columns_days": 2,
         # "max_pages": 10,  # 可选，默认 7
     },
     {
@@ -98,7 +99,8 @@ PRODUCTS = [
         "date_row": 1,
         "zipcode_row": 2,
         "result_start_col": "C",
-        "zipcodes": ["90001", "77001", "33101"],
+        "zipcodes": ["90001", "77001", "33101", "10001"],
+        "auto_hide_old_date_columns_days": 2,
     },
 ]
 
