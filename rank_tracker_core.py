@@ -851,8 +851,12 @@ def send_feishu_private_card(card):
 
 
 def build_top_keyword_rows_for_notification():
-    """读取指定邮编下每个产品前几个关键词的最新排名，用于简版播报。"""
-    zipcode = str(globals().get("NOTIFICATION_KEYWORD_ZIPCODE", "90001"))
+    """读取每个产品前几个关键词在配置邮编下的最新排名。"""
+    configured_zipcodes = globals().get("NOTIFICATION_KEYWORD_ZIPCODES")
+    if configured_zipcodes:
+        zipcodes = list(dict.fromkeys(str(z) for z in configured_zipcodes))
+    else:
+        zipcodes = [str(globals().get("NOTIFICATION_KEYWORD_ZIPCODE", "90001"))]
     keyword_count = int(globals().get("NOTIFICATION_KEYWORD_COUNT", 3))
     token_mgr = FeishuTokenManager()
     rows = []
@@ -870,9 +874,6 @@ def build_top_keyword_rows_for_notification():
         end_row = start_row + keyword_count - 1
         rows.append(f"**{name}**")
         try:
-            today_col_idx = find_latest_zipcode_column(
-                token_mgr.token, sheet_id, date_row, zipcode_row, zipcode, min_col_idx
-            )
             base = f"https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{SPREADSHEET_TOKEN}"
             kw_resp = feishu_api(
                 "GET",
@@ -880,33 +881,53 @@ def build_top_keyword_rows_for_notification():
                 token=token_mgr.token,
             )
             kw_rows = kw_resp["data"]["valueRange"].get("values", [])
-            rank_rows = []
-            if today_col_idx is not None:
-                rank_rows = read_existing_column(
-                    token_mgr.token, sheet_id, col_letter(today_col_idx), start_row, end_row
-                )
+            ranks_by_zipcode = {}
+            for zipcode in zipcodes:
+                try:
+                    today_col_idx = find_latest_zipcode_column(
+                        token_mgr.token, sheet_id, date_row, zipcode_row, zipcode, min_col_idx
+                    )
+                    ranks_by_zipcode[zipcode] = (
+                        read_existing_column(
+                            token_mgr.token, sheet_id, col_letter(today_col_idx), start_row, end_row
+                        )
+                        if today_col_idx is not None else []
+                    )
+                except Exception as e:
+                    ranks_by_zipcode[zipcode] = e
             for i in range(keyword_count):
                 keyword = kw_rows[i][0] if i < len(kw_rows) and kw_rows[i] else ""
-                rank = rank_rows[i][0] if i < len(rank_rows) and rank_rows[i] else "—"
-                rank_num = parse_rank(rank)
-                icon = "🟢" if rank_num and rank_num <= 4 else "🟡" if rank_num and rank_num <= 8 else "🔴" if rank_num else "⚪"
-                rows.append(f"{icon} {keyword}：{rank}")
-                total += 1
-                if rank_num:
-                    completed += 1
+                if len(zipcodes) > 1:
+                    rows.append(f"**{keyword or f'关键词{i + 1}'}**")
+                for zipcode in zipcodes:
+                    zip_ranks = ranks_by_zipcode[zipcode]
+                    if isinstance(zip_ranks, Exception):
+                        rows.append(f"❌ {zipcode}：读取失败 {zip_ranks}")
+                        total += 1
+                        continue
+                    rank = zip_ranks[i][0] if i < len(zip_ranks) and zip_ranks[i] else "—"
+                    rank_num = parse_rank(rank)
+                    icon = "🟢" if rank_num and rank_num <= 4 else "🟡" if rank_num and rank_num <= 8 else "🔴" if rank_num else "⚪"
+                    if len(zipcodes) > 1:
+                        rows.append(f"{icon} {zipcode}：{rank}")
+                    else:
+                        rows.append(f"{icon} {keyword}：{rank}")
+                    total += 1
+                    if rank_num:
+                        completed += 1
         except Exception as e:
-            rows.append(f"❌ 读取 {zipcode} 排名失败：{e}")
-    return rows, completed, total, zipcode
-
+            rows.append(f"❌ 读取 {name} 关键词/排名失败：{e}")
+    return rows, completed, total, "、".join(zipcodes)
 
 def send_feishu_notification(results_summary, notify_target="private"):
     """发送飞书卡片日报"""
     today_str = datetime.date.today().strftime("%m月%d日")
     title_prefix = globals().get("NOTIFICATION_TITLE_PREFIX", "自然位排名日报")
     if globals().get("NOTIFICATION_TOP_KEYWORDS_ONLY"):
-        rows, ok_count, total_units, zipcode = build_top_keyword_rows_for_notification()
+        rows, ok_count, total_units, zipcodes_label = build_top_keyword_rows_for_notification()
         total_groups = len(PRODUCTS)
-        note_text = f"仅展示 {zipcode} 前 {globals().get('NOTIFICATION_KEYWORD_COUNT', 3)} 个搜索词，{ok_count}/{total_units} 个词有排名"
+        keyword_count = globals().get("NOTIFICATION_KEYWORD_COUNT", 3)
+        note_text = f"展示邮编 {zipcodes_label} 下每个产品前 {keyword_count} 个搜索词，{ok_count}/{total_units} 个关键词/邮编组合有排名"
         all_ok = ok_count == total_units
     else:
         total_groups = len(results_summary)
@@ -1603,14 +1624,14 @@ def main():
             merge_date_header(token_mgr.token, sheet_id, date_row, min(cols), max(cols))
 
     auto_hide_days = globals().get("AUTO_HIDE_OLD_DATE_COLUMNS_DAYS")
-    if auto_hide_days is not None:
-        seen_sheets = set()
-        for config in PRODUCTS:
-            if config["sheet_id"] in seen_sheets:
-                continue
-            seen_sheets.add(config["sheet_id"])
+    seen_sheets = set()
+    for config in PRODUCTS:
+        sheet_id = config["sheet_id"]
+        config_hide_days = config.get("auto_hide_old_date_columns_days", auto_hide_days)
+        if config_hide_days is not None and sheet_id not in seen_sheets:
+            seen_sheets.add(sheet_id)
             try:
-                hide_old_date_columns(token_mgr.token, config, int(auto_hide_days))
+                hide_old_date_columns(token_mgr.token, config, int(config_hide_days))
             except Exception as e:
                 print(f"  ⚠ 自动隐藏旧日期列失败 {config.get('name')}: {e}", flush=True)
 
