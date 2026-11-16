@@ -1170,7 +1170,7 @@ def process_product(config, token_mgr, ranker):
 
     # 补查
     if coverage < MIN_COVERAGE_RATE and total > 0 and not (time.time() - _script_start_time > SCRIPT_TIMEOUT_MINUTES * 60 - 300):
-        missed = [(i, kw) for i, kw in enumerate(keywords) if kw and parse_rank(values[i][0]) is None]
+        missed = [(i, kw) for i, kw in enumerate(keywords) if kw and values[i][0] == "—"]
         if missed:
             print(f"\n  📡 覆盖率 {coverage:.0%} 低于 {MIN_COVERAGE_RATE:.0%}，启动补查 ({len(missed)} 个关键词)...")
             print("  ⏸️ 等待 60 秒冷却...", flush=True)
