@@ -87,7 +87,8 @@ PRODUCTS = [
         "date_row": 1,
         "zipcode_row": 2,
         "result_start_col": "C",
-        "zipcodes": ["90001", "77001", "33101"],
+        "zipcodes": ["90001", "77001", "33101", "10001"],
+        "auto_hide_old_date_columns_days": 2,
     },
     {
         "asin": "B0CB5TLRBR",
