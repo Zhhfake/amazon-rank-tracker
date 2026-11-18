@@ -776,11 +776,21 @@ def apply_rank_colors(token, sheet_id, today_col_idx, start_row, today_values,
     if white_ranges:
         data.append({"ranges": white_ranges, "style": {"backColor": "#FFFFFF"}})
 
+    border_start_row = zipcode_row if isinstance(zipcode_row, int) else start_row
+    border_end_row = start_row + len(today_values) - 1
+    if today_values and border_start_row <= border_end_row:
+        data.append({
+            "ranges": [f"{sheet_id}!{col}{border_start_row}:{col}{border_end_row}"],
+            "style": {"borderType": "FULL_BORDER", "borderColor": "#D9E1E8"},
+        })
+
     if data:
         base = f"https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{SPREADSHEET_TOKEN}"
         try:
             feishu_api("PUT", f"{base}/styles_batch_update", {"data": data}, token=token)
             print(f"  🎨 上色完成: {len(green_rows)}绿 {len(yellow_rows)}黄 {len(red_rows)}红 {len(white_rows)}白")
+            if today_values:
+                print(f"  ▦ 已添加浅灰边框: {col}{border_start_row}:{col}{border_end_row}")
         except Exception as e:
             print(f"  🎨 上色失败（不影响数据）: {e}")
 
