@@ -19,7 +19,6 @@ jobs:
       TZ: Asia/Shanghai
       FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
       FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
-      FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
       FEISHU_PRIVATE_OPEN_ID: ${{ secrets.FEISHU_PRIVATE_OPEN_ID }}
       SPREADSHEET_TOKEN: ${{ secrets.SPREADSHEET_TOKEN }}
       SPREADSHEET_URL: ${{ secrets.SPREADSHEET_URL }}
