@@ -301,7 +301,7 @@ def first_pages_organic_results(ranker, keyword, max_pages=3):
 
 
 def send_private_notification(keyword, results_by_zipcode, target_asins, spreadsheet_url, run_label):
-    """发送 90001 第一页竞品品牌与自然位通知到私聊和群聊。"""
+    """发送 90001 第一页竞品品牌与自然位私聊通知。"""
     notification_zipcode = "90001"
     first_page_results = [
         result
