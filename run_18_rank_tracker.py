@@ -8,12 +8,10 @@ import rank_tracker_core as core
 
 try:
     from local_secrets import (
-        FEISHU_18_WEBHOOK as LOCAL_FEISHU_18_WEBHOOK,
         SPREADSHEET_18_TOKEN as LOCAL_SPREADSHEET_18_TOKEN,
         SPREADSHEET_18_URL as LOCAL_SPREADSHEET_18_URL,
     )
 except ImportError:
-    LOCAL_FEISHU_18_WEBHOOK = ""
     LOCAL_SPREADSHEET_18_TOKEN = ""
     LOCAL_SPREADSHEET_18_URL = ""
 
