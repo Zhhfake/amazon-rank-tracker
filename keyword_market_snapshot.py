@@ -24,7 +24,6 @@ from rank_tracker_core import (
     FeishuTokenManager,
     col_letter,
     feishu_api,
-    send_feishu_group_card,
     send_feishu_private_card,
 )
 
@@ -353,7 +352,6 @@ def send_private_notification(keyword, results_by_zipcode, target_asins, spreads
     core.SPREADSHEET_URL = spreadsheet_url
     try:
         send_feishu_private_card(card)
-        send_feishu_group_card(card)
     finally:
         core.SPREADSHEET_URL = previous_url
 
