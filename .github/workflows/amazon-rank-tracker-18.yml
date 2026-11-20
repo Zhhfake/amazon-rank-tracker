@@ -30,7 +30,6 @@ jobs:
       FEISHU_PRIVATE_OPEN_ID: ${{ secrets.FEISHU_PRIVATE_OPEN_ID }}
       SPREADSHEET_18_TOKEN: ${{ secrets.SPREADSHEET_18_TOKEN }}
       SPREADSHEET_18_URL: ${{ secrets.SPREADSHEET_18_URL }}
-      FEISHU_18_WEBHOOK: ${{ secrets.FEISHU_18_WEBHOOK }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
