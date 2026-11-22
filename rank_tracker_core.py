@@ -480,7 +480,7 @@ def has_prime_delivery_result(value):
 def format_rank_with_delivery(rank, prime_eta="", card_seen=False, scan_complete=False):
     rank = rank or "—"
     if not card_seen and not scan_complete:
-        return rank
+        return f"{rank} | Prime: 扫描未完成"
     if prime_eta:
         delivery = prime_eta
     elif card_seen:
@@ -685,6 +685,7 @@ class AmazonRanker:
                 }
 
             if not page_has_results:
+                scan_complete = False
                 break
             if page < max_pages:
                 time.sleep(DELAY_BETWEEN_PAGES + random.uniform(-0.5, 1))
