@@ -45,6 +45,11 @@ class PrimeDeliveryTests(unittest.TestCase):
         self.assertEqual(result["B0H5J2F9JL"], "— | Prime: 目标未出现在已扫描搜索页")
         self.assertIsNone(core.parse_rank(result["B0H5J2F9JL"]))
 
+    def test_empty_search_page_is_marked_incomplete_not_missing(self):
+        result = self.make_ranker("").find_ranks("screen protector", ["B0H5J2F9JL"], max_pages=1)
+
+        self.assertEqual(result["B0H5J2F9JL"], "— | Prime: 扫描未完成")
+
 
 if __name__ == "__main__":
     unittest.main()
