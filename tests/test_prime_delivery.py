@@ -40,15 +40,19 @@ class PrimeDeliveryTests(unittest.TestCase):
 
     def test_complete_scan_marks_missing_asin_without_claiming_a_rank(self):
         page = '<div data-component-type="s-search-result" data-asin="B000000001">Other product</div>'
-        result = self.make_ranker(page).find_ranks("screen protector", ["B0H5J2F9JL"], max_pages=1)
+        with patch("builtins.print") as printer:
+            result = self.make_ranker(page).find_ranks("screen protector", ["B0H5J2F9JL"], max_pages=1)
 
         self.assertEqual(result["B0H5J2F9JL"], "— | Prime: 目标未出现在已扫描搜索页")
         self.assertIsNone(core.parse_rank(result["B0H5J2F9JL"]))
+        self.assertIn("扫描 1/1 页（完成）", printer.call_args.args[0])
 
     def test_empty_search_page_is_marked_incomplete_not_missing(self):
-        result = self.make_ranker("").find_ranks("screen protector", ["B0H5J2F9JL"], max_pages=1)
+        with patch("builtins.print") as printer:
+            result = self.make_ranker("").find_ranks("screen protector", ["B0H5J2F9JL"], max_pages=1)
 
         self.assertEqual(result["B0H5J2F9JL"], "— | Prime: 扫描未完成")
+        self.assertIn("扫描 1/1 页（未完成）", printer.call_args.args[0])
 
 
 if __name__ == "__main__":
