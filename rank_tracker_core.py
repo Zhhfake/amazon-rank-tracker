@@ -639,6 +639,8 @@ class AmazonRanker:
 
         overall_organic = 0
         scan_complete = True
+        scanned_pages = 0
+        page_card_counts = []
         for page in range(1, max_pages + 1):
             url = f"https://www.amazon.com/s?k={urllib.parse.quote(keyword)}&page={page}"
             try:
@@ -654,14 +656,17 @@ class AmazonRanker:
                 scan_complete = False
                 break
 
+            scanned_pages = page
             sections = re.split(r'(?=data-component-type="s-search-result")', html)
             page_has_results = False
+            page_card_count = 0
 
             for section in sections:
                 asin_match = re.search(r'data-asin="([A-Z0-9]{10})"', section)
                 if not asin_match or not asin_match.group(1):
                     continue
                 result_asin = asin_match.group(1)
+                page_card_count += 1
                 page_has_results = True
                 if result_asin in target_set:
                     cards_seen.add(result_asin)
@@ -678,6 +683,8 @@ class AmazonRanker:
                 if result_asin in target_set and ranks[result_asin] == "—":
                     ranks[result_asin] = f"Page {page} · #{overall_organic}"
 
+            page_card_counts.append(page_card_count)
+
             if all(v != "—" for v in ranks.values()):
                 return {
                     asin: format_rank_with_delivery(ranks[asin], prime_etas[asin], asin in cards_seen, True)
@@ -689,6 +696,15 @@ class AmazonRanker:
                 break
             if page < max_pages:
                 time.sleep(DELAY_BETWEEN_PAGES + random.uniform(-0.5, 1))
+
+        missing_asins = [asin for asin, rank in ranks.items() if rank == "—"]
+        if missing_asins:
+            state = "完成" if scan_complete else "未完成"
+            print(
+                f"    🔎 未命中关键词 '{keyword}' | ASIN {','.join(missing_asins)} | "
+                f"扫描 {scanned_pages}/{max_pages} 页（{state}） | 每页商品卡 {page_card_counts}",
+                flush=True,
+            )
 
         return {
             asin: format_rank_with_delivery(ranks[asin], prime_etas[asin], asin in cards_seen, scan_complete)
