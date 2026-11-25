@@ -14,7 +14,7 @@ Amazon 自然位排名追踪 — 核心逻辑
   python rank_to_feishu.py --skip-if-recent 55 # 55分钟内跑过则跳过（给云端定时用）
 """
 
-import urllib.request, urllib.parse, urllib.error, re, time, json, sys, datetime, os, signal, traceback, random, html
+import urllib.request, urllib.parse, urllib.error, re, time, json, sys, datetime, os, signal, traceback, random
 
 # 导入配置（用户只需要改 config.py）
 try:
@@ -440,56 +440,6 @@ def read_column_data(token, sheet_id, col_idx, start_row, end_row):
         return []
 
 
-def extract_delivery(section):
-    """提取搜索结果商品卡上的 Prime 和非会员预计送达文本。"""
-    text = html.unescape(section or "")
-    text = re.sub(r"<.*?>", " ", text, flags=re.S)
-    text = re.sub(r"\s+", " ", text).strip()
-    prime = ""
-    non_member = ""
-    prime_match = re.search(
-        r"(?:Join Prime\s+)?to get\s+FREE delivery\s+(.+?)(?=\s+Or Non-members|\s+Or\s+Non-members|$)",
-        text,
-        flags=re.I,
-    )
-    if prime_match:
-        prime = prime_match.group(1).strip(" .")
-    non_member_match = re.search(
-        r"Or Non-members get\s+FREE delivery\s+(.+?)(?=\s+on \$|\s+FREE Returns|\s+Recycled materials|\s+Sustainability features|$)",
-        text,
-        flags=re.I,
-    )
-    if non_member_match:
-        non_member = non_member_match.group(1).strip(" .")
-    if not prime and not non_member:
-        generic_matches = re.findall(
-            r"FREE delivery\s+(.+?)(?=\s+on \$|\s+FREE Returns|\s+Recycled materials|\s+Sustainability features|$)",
-            text,
-            flags=re.I,
-        )
-        if generic_matches:
-            prime = generic_matches[0].strip(" .")
-    return {"prime": prime, "non_member": non_member, "raw_text": text}
-
-
-def has_prime_delivery_result(value):
-    """True when a result cell was checked for delivery, including unavailable dates."""
-    return " | Prime:" in str(value or "")
-
-
-def format_rank_with_delivery(rank, prime_eta="", card_seen=False, scan_complete=False):
-    rank = rank or "—"
-    if not card_seen and not scan_complete:
-        return f"{rank} | Prime: 扫描未完成"
-    if prime_eta:
-        delivery = prime_eta
-    elif card_seen:
-        delivery = "未显示"
-    else:
-        delivery = "目标未出现在已扫描搜索页"
-    return f"{rank} | Prime: {delivery}"
-
-
 # ====== Amazon 排名查询 (Playwright) ======
 
 class AmazonRanker:
@@ -606,12 +556,10 @@ class AmazonRanker:
         return self.find_ranks(keyword, [target_asin], max_pages=max_pages).get(target_asin, "—")
 
     def find_ranks(self, keyword, target_asins, max_pages=MAX_PAGES):
-        """一次搜索多个目标 ASIN 的自然位和商品卡 Prime 配送时效。"""
+        """一次搜索多个目标 ASIN 的自然位，不读取配送信息。"""
         target_asins = list(dict.fromkeys(target_asins))
         target_set = set(target_asins)
         ranks = {asin: "—" for asin in target_asins}
-        prime_etas = {asin: "" for asin in target_asins}
-        cards_seen = set()
         if self.blocked:
             return ranks
         if time.time() - _script_start_time > SCRIPT_TIMEOUT_MINUTES * 60:
@@ -668,12 +616,6 @@ class AmazonRanker:
                 result_asin = asin_match.group(1)
                 page_card_count += 1
                 page_has_results = True
-                if result_asin in target_set:
-                    cards_seen.add(result_asin)
-                    delivery = extract_delivery(section)
-                    if delivery["prime"]:
-                        prime_etas[result_asin] = delivery["prime"]
-
                 is_sponsored = bool(re.search(r'Sponsored|AdHolder|s-sponsored', section[:5000]))
                 if is_sponsored:
                     continue
@@ -686,10 +628,7 @@ class AmazonRanker:
             page_card_counts.append(page_card_count)
 
             if all(v != "—" for v in ranks.values()):
-                return {
-                    asin: format_rank_with_delivery(ranks[asin], prime_etas[asin], asin in cards_seen, True)
-                    for asin in target_asins
-                }
+                return ranks
 
             if not page_has_results:
                 scan_complete = False
@@ -706,10 +645,7 @@ class AmazonRanker:
                 flush=True,
             )
 
-        return {
-            asin: format_rank_with_delivery(ranks[asin], prime_etas[asin], asin in cards_seen, scan_complete)
-            for asin in target_asins
-        }
+        return ranks
 
 
 # ====== 排名解析与对比 ======
@@ -1163,7 +1099,7 @@ def process_product(config, token_mgr, ranker):
     new_queried = 0
     for i, kw in enumerate(keywords):
         if kw:
-            if i < len(existing) and existing[i] and has_prime_delivery_result(existing[i][0]):
+            if i < len(existing) and existing[i] and parse_rank(existing[i][0]) is not None:
                 values.append([existing[i][0]])
                 done += 1
                 skipped_count += 1
@@ -1352,7 +1288,7 @@ def process_product_multi_asin(config, token_mgr, ranker):
         existing_complete = True
         for asin in target_asins:
             existing = existing_by_asin[asin]
-            if not (i < len(existing) and existing[i] and has_prime_delivery_result(existing[i][0])):
+            if not (i < len(existing) and existing[i] and parse_rank(existing[i][0]) is not None):
                 existing_complete = False
                 break
         if existing_complete:
