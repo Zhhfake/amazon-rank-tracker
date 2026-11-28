@@ -442,6 +442,27 @@ def read_column_data(token, sheet_id, col_idx, start_row, end_row):
 
 # ====== Amazon 排名查询 (Playwright) ======
 
+def _normalize_search_keyword(keyword):
+    """Remove only unmatched trailing quote characters from a search term."""
+    value = str(keyword or "").strip()
+    quote_pairs = [("'", "'"), ('"', '"'), ("’", "‘"), ("”", "“")]
+    changed = True
+    while value and changed:
+        changed = False
+        for closing, opening in quote_pairs:
+            if not value.endswith(closing):
+                continue
+            if closing == opening:
+                unmatched = value.count(closing) % 2 == 1
+            else:
+                unmatched = value.count(closing) > value.count(opening)
+            if unmatched:
+                value = value[:-1].rstrip()
+                changed = True
+                break
+    return value
+
+
 class AmazonRanker:
     def __init__(self, zipcode=ZIPCODE):
         from playwright.sync_api import sync_playwright
@@ -557,6 +578,14 @@ class AmazonRanker:
 
     def find_ranks(self, keyword, target_asins, max_pages=MAX_PAGES):
         """一次搜索多个目标 ASIN 的自然位，不读取配送信息。"""
+        original_keyword = str(keyword or "").strip()
+        keyword = _normalize_search_keyword(original_keyword)
+        if keyword != original_keyword:
+            print(
+                f"    ⚠️ 搜索词有未配对的末尾引号，查询时已清理："
+                f"{original_keyword!r} -> {keyword!r}",
+                flush=True,
+            )
         target_asins = list(dict.fromkeys(target_asins))
         target_set = set(target_asins)
         ranks = {asin: "—" for asin in target_asins}
@@ -589,6 +618,9 @@ class AmazonRanker:
         scan_complete = True
         scanned_pages = 0
         page_card_counts = []
+        source_pages = {asin: [] for asin in target_asins}
+        card_pages = {asin: [] for asin in target_asins}
+        sponsored_pages = {asin: [] for asin in target_asins}
         for page in range(1, max_pages + 1):
             url = f"https://www.amazon.com/s?k={urllib.parse.quote(keyword)}&page={page}"
             try:
@@ -605,6 +637,9 @@ class AmazonRanker:
                 break
 
             scanned_pages = page
+            for asin in target_asins:
+                if asin in html:
+                    source_pages[asin].append(page)
             sections = re.split(r'(?=data-component-type="s-search-result")', html)
             page_has_results = False
             page_card_count = 0
@@ -617,7 +652,11 @@ class AmazonRanker:
                 page_card_count += 1
                 page_has_results = True
                 is_sponsored = bool(re.search(r'Sponsored|AdHolder|s-sponsored', section[:5000]))
+                if result_asin in target_set:
+                    card_pages[result_asin].append(page)
                 if is_sponsored:
+                    if result_asin in target_set:
+                        sponsored_pages[result_asin].append(page)
                     continue
 
                 overall_organic += 1
@@ -639,9 +678,16 @@ class AmazonRanker:
         missing_asins = [asin for asin, rank in ranks.items() if rank == "—"]
         if missing_asins:
             state = "完成" if scan_complete else "未完成"
+            diagnostics = "; ".join(
+                f"{asin}:源码页{source_pages[asin] or '-'},"
+                f"商品卡页{card_pages[asin] or '-'},"
+                f"广告过滤页{sponsored_pages[asin] or '-'}"
+                for asin in missing_asins
+            )
             print(
                 f"    🔎 未命中关键词 '{keyword}' | ASIN {','.join(missing_asins)} | "
-                f"扫描 {scanned_pages}/{max_pages} 页（{state}） | 每页商品卡 {page_card_counts}",
+                f"扫描 {scanned_pages}/{max_pages} 页（{state}） | 每页商品卡 {page_card_counts} | "
+                f"目标诊断 {diagnostics}",
                 flush=True,
             )
 
